@@ -16,7 +16,7 @@ CURRENT_SEASON = calculate_season(datetime.date.today())
 def show_coach_dashboard():
     """Main rendering function for the Coach Dashboard."""
     
-    st.markdown("## 📋 Coach Dashboard")
+    st.markdown("## Coach Dashboard")
     
     # Create the 6 main coach tabs
     tab_lookup, tab_roster, tab_entry, tab_rankings, tab_print, tab_resources = st.tabs([
@@ -112,14 +112,14 @@ def show_coach_dashboard():
                 # We need to make sure we don't accidentally drop empty rows in the middle
                 # that google sheets might complain about, but the editor usually handles this.
                 conn.update(worksheet="Roster", data=edited_roster)
-                st.success("✅ Roster updated successfully! The cache will refresh automatically.")
+                st.success("Roster updated successfully! The cache will refresh automatically.")
                 
                 # Clear the Streamlit cache so the next load pulls the fresh data!
                 st.cache_data.clear()
                 st.rerun()
                 
             except Exception as e:
-                st.error(f"❌ Error saving roster: {e}")
+                st.error(f"Error saving roster: {e}")
                 
         st.markdown("---")
         
@@ -187,7 +187,7 @@ def show_coach_dashboard():
                 st.info("No archived members found.")
                 
         with tab_graduate:
-            st.warning("⚠️ This will advance all active 9th, 10th, and 11th graders to the next grade. It will also archive all current 12th graders and convert them to 'Alumni'. Use this only once at the end of the school year.")
+            st.warning("This will advance all active 9th, 10th, and 11th graders to the next grade. It will also archive all current 12th graders and convert them to 'Alumni'. Use this only once at the end of the school year.")
             
             grad_confirm = st.text_input("Type 'GRADUATE' to confirm:")
             if st.button("Execute Grade Advancement", type="primary", disabled=(grad_confirm != "GRADUATE")):
@@ -215,7 +215,7 @@ def show_coach_dashboard():
                     new_roster.loc[(new_roster["Grade"] == "Middle School") & (new_roster["Active_Clean"].isin(["TRUE", "1", "1.0"])), "Grade"] = "9th"
                     
                     conn.update(worksheet="Roster", data=new_roster)
-                    st.success("🎉 Roster successfully advanced for the new season!")
+                    st.success("Roster successfully advanced for the new season!")
                     st.cache_data.clear()
                     st.rerun()
                 except Exception as e:
@@ -240,7 +240,7 @@ def show_coach_dashboard():
                     try:
                         conn = st.connection("gsheets", type=GSheetsConnection)
                         with st.spinner("Updating database..."): conn.update(worksheet="VDOT", data=edited_vdot)
-                        st.success("✅ Pace Chart Updated!")
+                        st.success("Pace Chart Updated!")
                         st.cache_data.clear()
                         st.rerun()
                     except Exception as e: st.error(f"Error saving: {e}")
@@ -252,7 +252,7 @@ def show_coach_dashboard():
                     try:
                         conn = st.connection("gsheets", type=GSheetsConnection)
                         with st.spinner("Updating database..."): conn.update(worksheet="Rest", data=edited_rest)
-                        st.success("✅ Rest Cycles Updated!")
+                        st.success("Rest Cycles Updated!")
                         st.cache_data.clear()
                         st.rerun()
                     except Exception as e: st.error(f"Error saving: {e}")
@@ -278,7 +278,7 @@ def show_coach_dashboard():
                         new_races.loc[new_races["Meet_Name"] == sel_meet_weight, "Weight"] = new_w
                         with st.spinner("Updating weight database..."):
                             conn.update(worksheet="Races", data=new_races)
-                        st.success(f"✅ Weight for {sel_meet_weight} successfully updated to {new_w}x!")
+                        st.success(f"Weight for {sel_meet_weight} successfully updated to {new_w}x!")
                         st.cache_data.clear()
                         st.rerun()
                     except Exception as e:
@@ -301,7 +301,7 @@ def show_coach_dashboard():
                 if sel_meet_archive != "-- Select Meet --":
                     st.warning(f"Are you sure you want to archive all results for **{sel_meet_archive}**?")
                     
-                    if st.button(f"🗃️ Archive {sel_meet_archive}", type="primary"):
+                    if st.button(f"Archive {sel_meet_archive}", type="primary"):
                         try:
                             conn = st.connection("gsheets", type=GSheetsConnection)
                             new_races = races_data.copy()
@@ -311,7 +311,7 @@ def show_coach_dashboard():
                             with st.spinner(f"Archiving {sel_meet_archive}..."):
                                 conn.update(worksheet="Races", data=new_races)
                             
-                            st.success(f"✅ All results for {sel_meet_archive} have been archived and hidden from team rankings!")
+                            st.success(f"All results for {sel_meet_archive} have been archived and hidden from team rankings!")
                             st.cache_data.clear()
                             st.rerun()
                         except Exception as e:
@@ -384,16 +384,17 @@ def show_coach_dashboard():
                                 updated_races = pd.concat([races_data, pd.DataFrame(new_rows)], ignore_index=True)
                                 with st.spinner("Saving results to database..."):
                                     conn.update(worksheet="Races", data=updated_races)
-                                st.success(f"✅ Saved {len(new_rows)} results successfully!")
+                                st.success(f"Saved {len(new_rows)} results successfully!")
                                 st.cache_data.clear()
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"❌ Error saving results: {e}")
+                                st.error(f"Error saving results: {e}")
                         else:
                             st.warning("No valid Total Times entered. Nothing saved.")
                 elif not meet_name or not race_name:
                     st.info("👈 Fill out the Meet Name and Division on the left to unlock Time Entry.")
-          elif de_type == "Workouts":
+
+        elif de_type == "Workouts":
             workout_action = st.radio("Action:", ["Log New Workout", "Edit/Delete Existing Workout"], horizontal=True)
             
             if workout_action == "Log New Workout":
@@ -487,7 +488,64 @@ def show_coach_dashboard():
                         
                         e_col1, e_col2, e_col3 = st.columns(3)
                         with e_col1: new_date = st.date_input("New Date", pd.to_datetime(old_date))
-                        with e_col2: new_type = st.selectbox("New Type", ["Tempo", "Intervals", "Hills", "Other"], index=["Tempo", "Intervals", "Hills", "Other"].index(old_type) if old_type in ["Tempo", "Intervals      
+                        with e_col2: new_type = st.selectbox("New Type", ["Tempo", "Intervals", "Hills", "Other"], index=["Tempo", "Intervals", "Hills", "Other"].index(old_type) if old_type in ["Tempo", "Intervals", "Hills", "Other"] else 3)
+                        with e_col3: new_weather = st.text_input("New Weather", value=target_rows.iloc[0]["Weather"] if "Weather" in target_rows.columns else "")
+                        
+                        st.markdown("### Update Athlete Statuses")
+                        merged = pd.merge(target_rows, roster_data[["Username", "First_Name", "Last_Name"]], on="Username", how="inner")
+                        
+                        edit_entries = []
+                        for _, r in merged.iterrows():
+                            u = r["Username"]
+                            name_str = f"{r['First_Name']} {r['Last_Name']} ({u})"
+                            ec1, ec2, ec3 = st.columns([2, 1, 2])
+                            ec1.markdown(f"**{name_str}**")
+                            
+                            c_stat = r["Status"]
+                            idx_stat = ["Present", "Absent", "Excused", "Injured"].index(c_stat) if c_stat in ["Present", "Absent", "Excused", "Injured"] else 0
+                            new_stat = ec2.selectbox("Status", ["Present", "Absent", "Excused", "Injured"], index=idx_stat, key=f"e_stat_{u}")
+                            
+                            new_split = ""
+                            if new_stat == "Present":
+                                new_split = ec3.text_input("Splits", value=r["Splits"], key=f"e_split_{u}")
+                                
+                            st.markdown("<hr style='margin:0.2em 0'>", unsafe_allow_html=True)
+                            edit_entries.append({"user": u, "status": new_stat, "splits": new_split})
+                            
+                        st.markdown("---")
+                        col_save, col_del = st.columns(2)
+                        with col_save:
+                            if st.button("💾 Save Edits to Workout", type="primary", use_container_width=True):
+                                conn = st.connection("gsheets", type=GSheetsConnection)
+                                keep_rows = workouts_data[~((workouts_data["Date"] == old_date) & (workouts_data["Workout_Type"] == old_type))]
+                                
+                                new_rows = []
+                                for e in edit_entries:
+                                    new_rows.append({
+                                        "Date": new_date.strftime('%Y-%m-%d'),
+                                        "Workout_Type": new_type,
+                                        "Rep_Distance": target_rows.iloc[0]["Rep_Distance"], 
+                                        "Weather": new_weather,
+                                        "Username": e["user"],
+                                        "Status": e["status"],
+                                        "Splits": e["splits"]
+                                    })
+                                    
+                                updated_workouts = pd.concat([keep_rows, pd.DataFrame(new_rows)], ignore_index=True)
+                                with st.spinner("Updating workout..."): conn.update(worksheet="Workouts", data=updated_workouts)
+                                st.success("Workout updated successfully!")
+                                st.cache_data.clear()
+                                st.rerun()
+                                
+                        with col_del:
+                            if st.button("🗑️ Delete This Workout Entirely", use_container_width=True):
+                                keep_rows = workouts_data[~((workouts_data["Date"] == old_date) & (workouts_data["Workout_Type"] == old_type))]
+                                conn = st.connection("gsheets", type=GSheetsConnection)
+                                with st.spinner("Deleting workout..."): conn.update(worksheet="Workouts", data=keep_rows)
+                                st.success("Workout deleted!")
+                                st.cache_data.clear()
+                                st.rerun()
+
     # ==========================================
     # --- 5. MEET SETUP & PRINTABLES TAB ---
     # ==========================================
