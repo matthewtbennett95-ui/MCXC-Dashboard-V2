@@ -759,97 +759,94 @@ def password_reset_page():
 # 7. HOME PAGE ROUTER
 # ==========================================
 
-def _render_mobile_settings_bar():
+def _render_sidebar_opener_button():
     """
-    Branded settings toggle shown at the TOP of every logged-in page on mobile.
-    Hidden on desktop via CSS (display:none for screens wider than 768px),
-    so desktop users continue using the sidebar exactly as before.
+    Renders a small branded '⚙️ Settings' button at the top of the main page.
+    Its ONLY job is to fire a JavaScript click on Streamlit's native sidebar
+    toggle button, which slides the sidebar into view on mobile.
 
-    Tapping the button toggles an inline panel open/closed using the
-    session state key 'mobile_settings_open'.
-
-    IMPORTANT: All widgets here use keys prefixed 'mob_' to guarantee they
-    never collide with the identical sidebar widgets, which use 'sidebar_'
-    prefixed keys. Streamlit requires every on-screen widget to have a
-    unique key — this is the correct pattern when the same logical control
-    needs to appear in two places.
+    Why this approach instead of duplicate widgets:
+    - There is only ONE set of settings widgets — they live in the sidebar.
+    - This button is purely a JS trigger; it creates no duplicate selectboxes
+      or buttons, so there is zero risk of DuplicateElementKey errors.
+    - On desktop the sidebar is always visible, so this button is styled to
+      blend in quietly (small, right-aligned). On mobile it is the primary
+      way to reach settings since the Streamlit hamburger menu is hidden.
+    - We use components.html() so the JS runs in the browser context and can
+      reach window.parent.document where Streamlit's sidebar toggle lives.
     """
-    if "mobile_settings_open" not in st.session_state:
-        st.session_state["mobile_settings_open"] = False
-
-    # CSS: hide this entire block on wide screens; show only on narrow/mobile.
-    # The gradient bar is a visual accent above the toggle button.
-    st.markdown(f"""
-        <style>
-        .mobile-settings-wrapper {{ display: none; }}
-        @media (max-width: 768px) {{
-            .mobile-settings-wrapper {{ display: block; }}
-        }}
-        .mobile-settings-bar {{
+    # Gradient accent bar + opener button rendered via HTML/JS
+    # The button fires a click() on Streamlit's own [data-testid="stSidebarCollapsedControl"]
+    # or the sidebar chevron, whichever is present in the current Streamlit version.
+    opener_html = f"""
+    <style>
+        .mcxc-settings-bar {{
             background: linear-gradient(to right, {MCXC_CRIMSON}, {MCXC_NAVY});
-            height: 6px;
-            border-radius: 3px;
-            margin-bottom: 8px;
+            padding: 6px 12px 6px 16px;
+            border-radius: 0 0 8px 8px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            margin-bottom: 10px;
         }}
-        </style>
-        <div class="mobile-settings-wrapper">
-            <div class="mobile-settings-bar"></div>
-        </div>
-    """, unsafe_allow_html=True)
-
-    btn_label = "✖ Close Settings" if st.session_state["mobile_settings_open"] else "⚙️ Settings"
-    _, btn_col = st.columns([5, 1])
-    with btn_col:
-        if st.button(btn_label, key="mob_settings_toggle", use_container_width=True):
-            st.session_state["mobile_settings_open"] = not st.session_state["mobile_settings_open"]
-            st.rerun()
-
-    # Inline collapsible panel — only rendered when toggled open
-    if st.session_state["mobile_settings_open"]:
-        panel_bg = THEMES[st.session_state["theme"]]["sidebar_bg"]
-        panel_border = THEMES[st.session_state["theme"]]["metric_border"]
-        st.markdown(f"""
-            <div style="background-color:{panel_bg}; border:1px solid {panel_border};
-                        border-radius:8px; padding:16px 20px; margin-bottom:16px;">
-                <strong>⚙️ Settings</strong>
-            </div>
-        """, unsafe_allow_html=True)
-        _col1, _col2, _col3 = st.columns([1, 2, 1])
-        with _col2:
-            # Theme selector — 'mob_' prefix keeps key unique vs sidebar widget
-            theme_keys = list(THEMES.keys())
-            mob_theme = st.selectbox(
-                "App Theme",
-                theme_keys,
-                index=theme_keys.index(st.session_state["theme"]),
-                key="mob_theme_select"
-            )
-            if mob_theme != st.session_state["theme"]:
-                st.session_state["theme"] = mob_theme
-                st.rerun()
-            st.markdown("---")
-            # Logout — 'mob_' prefix keeps key unique vs sidebar widget
-            st.button("Log Out", on_click=logout, use_container_width=True, key="mob_logout_btn")
-        st.markdown("---")
+        .mcxc-settings-btn {{
+            background: rgba(255,255,255,0.15);
+            color: #ffffff;
+            border: 1px solid rgba(255,255,255,0.4);
+            border-radius: 6px;
+            padding: 5px 14px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            letter-spacing: 0.3px;
+            transition: background 0.2s;
+        }}
+        .mcxc-settings-btn:hover, .mcxc-settings-btn:active {{
+            background: rgba(255,255,255,0.28);
+        }}
+    </style>
+    <div class="mcxc-settings-bar">
+        <button class="mcxc-settings-btn" onclick="openSidebar()">⚙️ Settings</button>
+    </div>
+    <script>
+        function openSidebar() {{
+            // Try the collapsed-state toggle button first (Streamlit >= 1.28)
+            const doc = window.parent.document;
+            let toggle = doc.querySelector('[data-testid="stSidebarCollapsedControl"]');
+            if (toggle) {{ toggle.click(); return; }}
+            // Fallback: the expand chevron button used in older versions
+            toggle = doc.querySelector('[data-testid="collapsedControl"]');
+            if (toggle) {{ toggle.click(); return; }}
+            // Last resort: any button that contains the sidebar nav icon
+            const btns = doc.querySelectorAll('button');
+            for (const b of btns) {{
+                if (b.getAttribute('aria-label') === 'Open Sidebar' ||
+                    b.getAttribute('aria-expanded') === 'false') {{
+                    b.click(); return;
+                }}
+            }}
+        }}
+    </script>
+    """
+    components.html(opener_html, height=52)
 
 
 def home_page():
     """
     Main page router — shown after login.
-    Renders:
-      1. Desktop sidebar: theme selector + logout, works exactly as before.
-      2. Mobile settings bar: pinned at top, hidden on desktop via CSS.
-         Always one tap away on a phone without needing landscape mode.
-      3. Page title and role-based view (Coach or Athlete).
 
-    Widget key convention:
-      sidebar_*  — widgets inside st.sidebar
-      mob_*      — widgets inside the mobile settings bar
-    This prevents Streamlit DuplicateElementKey errors when both are on-screen.
+    Settings architecture (no duplicate widgets):
+    - ALL settings controls (theme picker, logout) live ONLY in the sidebar.
+    - The main page has a single branded '⚙️ Settings' button whose only job
+      is to programmatically open the sidebar via JavaScript.
+    - This means there is exactly one selectbox and one logout button total,
+      eliminating any possibility of DuplicateElementKey errors.
+    - On desktop the sidebar is always visible anyway; the button is a minor
+      accent. On mobile it is the primary settings entry point.
     """
     user_role = str(st.session_state["role"]).capitalize()
 
-    # --- Desktop sidebar (unchanged behavior) ---
+    # --- Sidebar: the one and only home for settings widgets ---
     with st.sidebar:
         st.subheader("⚙️ Settings")
         theme_keys = list(THEMES.keys())
@@ -865,8 +862,8 @@ def home_page():
         st.markdown("---")
         st.button("Log Out", on_click=logout, use_container_width=True, key="sidebar_logout_btn")
 
-    # --- Mobile settings bar (CSS-hidden on desktop) ---
-    _render_mobile_settings_bar()
+    # --- Branded bar + JS sidebar opener (mobile primary, desktop subtle) ---
+    _render_sidebar_opener_button()
 
     st.title(f"{user_role}: {st.session_state['first_name']} {st.session_state['last_name']}")
     st.markdown("---")
