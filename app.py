@@ -465,19 +465,56 @@ def display_suggested_paces(target_username):
     st.dataframe(rest_data, hide_index=True, use_container_width=True)
 
 def display_team_resources():
+    """
+    Renders each team document as a mobile-friendly scrollable iframe.
+    - The outer div uses overflow:auto + -webkit-overflow-scrolling:touch so
+      users can pinch-zoom and scroll the doc horizontally on a phone.
+    - A direct 'Open in new tab' link is shown below each doc as a fallback
+      for browsers that block iframes.
+    - Google Doc 'edit' links are converted to 'preview' links automatically.
+    """
     st.subheader("Team Resources")
     if docs_data.empty:
         st.info("No documents have been uploaded by the coaches yet.")
         return
+
     has_valid = False
     for _, row in docs_data.iterrows():
         url = str(row.get("URL", "")).strip()
-        if pd.notna(row.get("URL")) and url.startswith("http"):
-            has_valid = True
-            if "edit" in url and "pub" not in url: url = url.replace("edit", "preview")
-            st.markdown(f"#### {row['Title']}")
-            st.markdown(f'<iframe src="{url}" width="100%" height="850px" style="border: 1px solid #ccc; border-radius: 8px;"></iframe>', unsafe_allow_html=True)
-            st.markdown("<br>", unsafe_allow_html=True)
+        if not pd.notna(row.get("URL")) or not url.startswith("http"):
+            continue
+        has_valid = True
+        # Convert Google Doc edit links → embeddable preview links
+        if "edit" in url and "pub" not in url:
+            url = url.replace("edit", "preview")
+        title = row.get("Title", "Document")
+        st.markdown(f"#### {title}")
+        # Wrapper div: scrollable + touch-friendly, with a min-height so the
+        # doc is usable on mobile without being a tiny unreadable box.
+        st.markdown(f"""
+        <div style="
+            width: 100%;
+            overflow: auto;
+            -webkit-overflow-scrolling: touch;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        ">
+            <iframe
+                src="{url}"
+                width="900"
+                height="800"
+                style="border: none; display: block;"
+                allowfullscreen="true"
+            ></iframe>
+        </div>
+        <p style="font-size: 13px; margin-top: 4px; margin-bottom: 24px;">
+            📄 <a href="{url}" target="_blank" rel="noopener noreferrer">
+                Open "{title}" in a new tab
+            </a>
+        </p>
+        """, unsafe_allow_html=True)
+
     if not has_valid:
         st.info("No active document links have been uploaded yet.")
 
@@ -721,17 +758,107 @@ def password_reset_page():
 # ==========================================
 # 7. HOME PAGE ROUTER
 # ==========================================
+
+def _render_settings_panel():
+    """
+    Renders the theme selector and logout button.
+    Used in BOTH the desktop sidebar and the mobile inline panel
+    so there is only one source of truth for settings logic.
+    Returns True if a rerun was triggered (caller should not render further).
+    """
+    theme_keys = list(THEMES.keys())
+    selected_theme = st.selectbox(
+        "App Theme",
+        theme_keys,
+        index=theme_keys.index(st.session_state["theme"]),
+        key="settings_theme_select"
+    )
+    if selected_theme != st.session_state["theme"]:
+        st.session_state["theme"] = selected_theme
+        st.rerun()
+    st.markdown("---")
+    st.button("Log Out", on_click=logout, use_container_width=True, key="settings_logout_btn")
+
+
+def _render_mobile_settings_bar():
+    """
+    Pinned branded settings bar shown at the TOP of every logged-in page.
+    Tapping '⚙️ Settings' toggles an inline panel open/closed.
+    Designed for mobile — always visible without needing to open the sidebar.
+
+    Uses session state key 'mobile_settings_open' (bool) to track open/closed.
+    The bar is crimson-branded to match MCXC colors regardless of theme,
+    so it is always easy to find.
+    """
+    if "mobile_settings_open" not in st.session_state:
+        st.session_state["mobile_settings_open"] = False
+
+    # Branded top bar with toggle button
+    btn_label = "✖ Close Settings" if st.session_state["mobile_settings_open"] else "⚙️ Settings"
+    st.markdown(f"""
+        <style>
+        /* Sticky top bar that sits above all content */
+        .mobile-settings-bar {{
+            position: sticky;
+            top: 0;
+            z-index: 999;
+            background: linear-gradient(to right, {MCXC_CRIMSON}, {MCXC_NAVY});
+            padding: 6px 12px;
+            border-radius: 0 0 8px 8px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+        }}
+        </style>
+        <div class="mobile-settings-bar"></div>
+    """, unsafe_allow_html=True)
+
+    # Streamlit button sits on top of the bar via column alignment
+    _, btn_col = st.columns([5, 1])
+    with btn_col:
+        if st.button(btn_label, key="mobile_settings_toggle", use_container_width=True):
+            st.session_state["mobile_settings_open"] = not st.session_state["mobile_settings_open"]
+            st.rerun()
+
+    # Inline collapsible settings panel (only rendered when open)
+    if st.session_state["mobile_settings_open"]:
+        with st.container():
+            st.markdown(f"""
+                <div style="
+                    background-color: {THEMES[st.session_state['theme']]['sidebar_bg']};
+                    border: 1px solid {THEMES[st.session_state['theme']]['metric_border']};
+                    border-radius: 8px;
+                    padding: 16px 20px;
+                    margin-bottom: 16px;
+                ">
+                <strong>⚙️ Settings</strong>
+                </div>
+            """, unsafe_allow_html=True)
+            _col1, _col2, _col3 = st.columns([1, 2, 1])
+            with _col2:
+                _render_settings_panel()
+        st.markdown("---")
+
+
 def home_page():
+    """
+    Main page router — shown after login.
+    Renders:
+      1. Desktop sidebar (theme + logout) — hidden on mobile by Streamlit automatically
+      2. Mobile settings bar pinned at top — always accessible on phone
+      3. Page title
+      4. Coach or Athlete view based on role
+    """
     user_role = str(st.session_state["role"]).capitalize()
 
+    # --- Desktop sidebar (works as before on desktop/landscape) ---
     with st.sidebar:
         st.subheader("⚙️ Settings")
-        selected_theme = st.selectbox("App Theme", list(THEMES.keys()), index=list(THEMES.keys()).index(st.session_state["theme"]))
-        if selected_theme != st.session_state["theme"]:
-            st.session_state["theme"] = selected_theme
-            st.rerun()
-        st.markdown("---")
-        st.button("Log Out", on_click=logout, use_container_width=True)
+        _render_settings_panel()
+
+    # --- Mobile-first pinned settings bar (top of page, always visible) ---
+    _render_mobile_settings_bar()
 
     st.title(f"{user_role}: {st.session_state['first_name']} {st.session_state['last_name']}")
     st.markdown("---")
