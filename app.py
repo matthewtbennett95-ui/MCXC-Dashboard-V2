@@ -1190,26 +1190,225 @@ def home_page():
     else:
         _athlete_view()
 
-# ---- COACH VIEW ----
+
+# ==========================================
+# COACH TAB: ATHLETE LOOKUP
+# ==========================================
+def _tab_athlete_lookup():
+    """View any athlete's full race and workout history, paces, and career PRs."""
+    st.subheader("Athlete Lookup")
+    col1, col2, col3 = st.columns(3)
+    filter_status = col1.selectbox("Filter by Status:", ["Active", "Archived", "All"])
+    filter_gender = col2.selectbox("Filter by Gender:", ["All", "Male", "Female"])
+    filter_grade  = col3.selectbox("Filter by Grade:", ["All", "9th", "10th", "11th", "12th", "Middle School"])
+
+    base = roster_data[roster_data["Role"].str.upper() == "ATHLETE"].copy()
+    if filter_status == "Active":
+        base = base[base["Active_Clean"].isin(ACTIVE_FLAGS)]
+    elif filter_status == "Archived":
+        base = base[~base["Active_Clean"].isin(ACTIVE_FLAGS)]
+
+    base["Grade"] = base.get("Grad_Year", "Unknown").apply(get_grade_level)
+    if filter_gender != "All": base = base[base["Gender"].str.title() == filter_gender]
+    if filter_grade  != "All": base = base[base["Grade"] == filter_grade]
+    base = base.sort_values(["Last_Name", "First_Name"])
+    athlete_dict = {row["Username"]: f"{row['Last_Name']}, {row['First_Name']} - {row['Grade']}"
+                    for _, row in base.iterrows()}
+
+    if not athlete_dict:
+        st.info("No athletes match this filter.")
+        return
+
+    col_sel1, _ = st.columns([1, 2])
+    with col_sel1:
+        selected_username = st.selectbox("Select an Athlete:", options=list(athlete_dict.keys()),
+                                          format_func=lambda x: athlete_dict[x])
+    if selected_username:
+        st.markdown("---")
+        target = base[base["Username"] == selected_username].iloc[0]
+        st.markdown(f"### {target['First_Name']} {target['Last_Name']} ({target['Grade']})")
+        u_races = races_data[races_data["Username"] == selected_username]
+        u_works = workouts_data[workouts_data["Username"] == selected_username]
+        athlete_seasons = sorted(set(u_races["Season"].tolist() + u_works["Season"].tolist()), reverse=True) or [CURRENT_SEASON]
+        col_s1, _ = st.columns([1, 3])
+        with col_s1:
+            sel_season = st.selectbox("View Season:", athlete_seasons, key="coach_athlete_season")
+        sub1, sub2, sub3, sub4 = st.tabs(["Race Results", "Workouts", "Training Paces", "Career PRs"])
+        with sub1: display_athlete_races(selected_username, sel_season)
+        with sub2: display_athlete_workouts(selected_username, sel_season)
+        with sub3: display_suggested_paces(selected_username)
+        with sub4: display_career_history(selected_username)
+
+
+# ==========================================
+# COACH TAB: ROSTER MANAGEMENT
+# ==========================================
+def _tab_roster_management():
+    """Add, edit, archive, and restore team members."""
+    st.subheader("Roster Management")
+    roster_action = st.radio(
+        "Choose an action:",
+        ["View Current Roster", "Add New Member", "Edit Member", "Archive / Restore"],
+        horizontal=True
+    )
+    st.markdown("---")
+
+    if roster_action == "View Current Roster":
+        active_roster = roster_data[roster_data["Active_Clean"].isin(ACTIVE_FLAGS)].copy()
+        if "Grad_Year" in active_roster.columns:
+            active_roster["Grade"] = active_roster["Grad_Year"].apply(get_grade_level)
+            display_roster = active_roster[["First_Name", "Last_Name", "Gender", "Grade", "Grad_Year", "Role"]].copy()
+            display_roster["Sort_Year"] = pd.to_numeric(display_roster["Grad_Year"], errors="coerce").fillna(9999)
+            display_roster = display_roster.sort_values(["Role", "Sort_Year", "Gender", "Last_Name"]).drop(columns=["Sort_Year"])
+            st.dataframe(display_roster, hide_index=True, use_container_width=True)
+        else:
+            st.dataframe(active_roster[["First_Name", "Last_Name", "Role"]].sort_values("Last_Name"), hide_index=True)
+
+    elif roster_action == "Add New Member":
+        with st.form("add_member_form"):
+            r1, r2 = st.columns(2)
+            new_first = r1.text_input("First Name", autocomplete="off")
+            new_last  = r2.text_input("Last Name", autocomplete="off")
+            r3, r4 = st.columns(2)
+            new_role      = r3.selectbox("Role", ["Athlete", "Coach"])
+            new_grad_year = r4.text_input("Grad Year (e.g., 2028)", autocomplete="off")
+            r5, _ = st.columns(2)
+            new_gender = r5.selectbox("Gender", ["Male", "Female", "N/A"])
+            if st.form_submit_button("Add to Roster"):
+                if not new_first or not new_last:
+                    st.error("First and Last name are required.")
+                else:
+                    if new_role == "Coach":
+                        final_grad_year, final_gender = "Coach", "N/A"
+                    else:
+                        final_grad_year, final_gender = new_grad_year.strip(), new_gender
+                        if not final_grad_year.isdigit() or len(final_grad_year) != 4:
+                            st.error("Graduation Year must be a 4-digit number.")
+                            st.stop()
+                    base_un = f"{new_first.lower()}.{new_last.lower()}".replace(" ", "")
+                    gen_un, suffix = base_un, 1
+                    while gen_un in roster_data["Username"].tolist():
+                        gen_un = f"{base_un}{suffix}"; suffix += 1
+                    new_row = pd.DataFrame([{
+                        "Username": gen_un, "Password": "changeme",
+                        "First_Name": new_first, "Last_Name": new_last,
+                        "Role": new_role, "First_Login": "TRUE", "Active": "TRUE",
+                        "Grad_Year": final_grad_year, "Gender": final_gender
+                    }])
+                    push = roster_data.drop(columns=["Active_Clean"]) if "Active_Clean" in roster_data.columns else roster_data
+                    updated = pd.concat([push, new_row], ignore_index=True)
+                    with st.spinner("Adding new member..."): conn.update(worksheet="Roster", data=updated)
+                    st.success(f"Added {new_first} {new_last}. Username: '{gen_un}'.")
+                    st.cache_data.clear(); st.rerun()
+
+    elif roster_action == "Edit Member":
+        st.info("Note: Usernames cannot be changed.")
+        active = roster_data[roster_data["Active_Clean"].isin(ACTIVE_FLAGS)]
+        edit_dict = {row["Username"]: f"{row['First_Name']} {row['Last_Name']} ({row.get('Role','')})"
+                     for _, row in active.iterrows()}
+        if not edit_dict:
+            st.info("No active members to edit.")
+        else:
+            col_e1, _ = st.columns([1, 1])
+            with col_e1:
+                user_to_edit = st.selectbox("Select Member to Edit:", options=list(edit_dict.keys()),
+                                             format_func=lambda x: edit_dict[x])
+            if user_to_edit:
+                target_row = roster_data[roster_data["Username"] == user_to_edit].iloc[0]
+                with st.form("edit_member_form"):
+                    e1, e2 = st.columns(2)
+                    edit_first = e1.text_input("First Name", value=target_row["First_Name"], autocomplete="off")
+                    edit_last  = e2.text_input("Last Name",  value=target_row["Last_Name"],  autocomplete="off")
+                    e3, e4 = st.columns(2)
+                    role_index = 0 if str(target_row["Role"]).title() == "Athlete" else 1
+                    edit_role      = e3.selectbox("Role", ["Athlete", "Coach"], index=role_index)
+                    edit_grad_year = e4.text_input("Grad Year", value=str(target_row.get("Grad_Year", "")), autocomplete="off")
+                    e5, _ = st.columns(2)
+                    gender_val  = str(target_row.get("Gender", "N/A")).title()
+                    gender_opts = ["Male", "Female", "N/A"]
+                    g_index     = gender_opts.index(gender_val) if gender_val in gender_opts else 2
+                    edit_gender = e5.selectbox("Gender", gender_opts, index=g_index)
+                    if st.form_submit_button("Save Changes"):
+                        if edit_role != "Coach" and (not edit_grad_year.strip().isdigit() or len(edit_grad_year.strip()) != 4):
+                            st.error("Graduation Year must be a 4-digit number.")
+                            st.stop()
+                        idx = roster_data.index[roster_data["Username"] == user_to_edit].tolist()[0]
+                        roster_data.at[idx, "First_Name"] = edit_first
+                        roster_data.at[idx, "Last_Name"]  = edit_last
+                        roster_data.at[idx, "Role"]       = edit_role
+                        roster_data.at[idx, "Grad_Year"]  = "Coach" if edit_role == "Coach" else edit_grad_year.strip()
+                        roster_data.at[idx, "Gender"]     = "N/A"   if edit_role == "Coach" else edit_gender
+                        with st.spinner("Saving changes..."): save_to_sheet("Roster", roster_data)
+                        st.success("Member updated successfully."); st.rerun()
+
+    elif roster_action == "Archive / Restore":
+        arc_tab1, arc_tab2, arc_tab3 = st.tabs(["Archive Individual", "Restore Member", "Graduate Seniors"])
+        with arc_tab1:
+            active = roster_data[roster_data["Active_Clean"].isin(ACTIVE_FLAGS)]
+            arc_dict = {row["Username"]: f"{row['First_Name']} {row['Last_Name']}" for _, row in active.iterrows()}
+            if not arc_dict:
+                st.info("No active members to archive.")
+            else:
+                col1, _ = st.columns([1, 2])
+                with col1:
+                    user_to_archive = st.selectbox("Select Member to Archive:", options=list(arc_dict.keys()),
+                                                    format_func=lambda x: arc_dict[x])
+                if st.button("Archive Member"):
+                    idx = roster_data.index[roster_data["Username"] == user_to_archive].tolist()[0]
+                    roster_data.at[idx, "Active"] = "FALSE"
+                    save_to_sheet("Roster", roster_data); st.rerun()
+
+        with arc_tab2:
+            inactive = roster_data[~roster_data["Active_Clean"].isin(ACTIVE_FLAGS)]
+            restore_dict = {row["Username"]: f"{row['First_Name']} {row['Last_Name']}" for _, row in inactive.iterrows()}
+            if not restore_dict:
+                st.info("There are no archived members to restore.")
+            else:
+                col1, _ = st.columns([1, 2])
+                with col1:
+                    user_to_restore = st.selectbox("Select Member to Restore:", options=list(restore_dict.keys()),
+                                                    format_func=lambda x: restore_dict[x])
+                if st.button("Restore Member"):
+                    idx = roster_data.index[roster_data["Username"] == user_to_restore].tolist()[0]
+                    roster_data.at[idx, "Active"] = "TRUE"
+                    save_to_sheet("Roster", roster_data); st.rerun()
+
+        with arc_tab3:
+            st.warning("This will archive all active runners currently calculated as 12th grade.")
+            active_df = roster_data[roster_data["Active_Clean"].isin(ACTIVE_FLAGS)].copy()
+            active_df["Grade"] = active_df.get("Grad_Year", "Unknown").apply(get_grade_level)
+            seniors = active_df[active_df["Grade"] == "12th"]
+            if seniors.empty:
+                st.info("No active seniors found.")
+            else:
+                for _, s in seniors.iterrows():
+                    st.markdown(f"- {s['First_Name']} {s['Last_Name']}")
+                if st.button("Confirm: Archive All Seniors"):
+                    for _, s in seniors.iterrows():
+                        idx = roster_data.index[roster_data["Username"] == s["Username"]].tolist()[0]
+                        roster_data.at[idx, "Active"] = "FALSE"
+                    with st.spinner("Archiving seniors..."): save_to_sheet("Roster", roster_data)
+                    st.rerun()
+
 
 # ---- COACH VIEW ----
 def _coach_view():
     """
     Coach tab structure:
-      1. Athlete Lookup   — view any athlete's stats
-      2. 📋 Printables    — create/print meet sheets, workout sheets, attendance
-      3. ✏️ Data Entry    — enter race results and workout splits after the event
-      4. 🏆 Rankings      — team leaderboard and master grid
-      5. 👥 Roster        — manage members
-      6. ⚙️ Manage        — meet weights, archive, VDOT/rest tables, documents
+      1. Athlete Lookup  — view any athlete's stats
+      2. Printables      — create/print meet sheets, workout sheets, attendance
+      3. Data Entry      — enter race results and workout splits after the event
+      4. Rankings        — team leaderboard and master grid
+      5. Roster          — manage members
+      6. Manage          — meet weights, archive, VDOT/rest tables, documents
     """
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "Athlete Lookup",
-        "📋 Printables",
-        "✏️ Data Entry",
-        "🏆 Rankings",
-        "👥 Roster",
-        "⚙️ Manage",
+        "Printables",
+        "Data Entry",
+        "Rankings",
+        "Roster",
+        "Manage",
     ])
     with tab1: _tab_athlete_lookup()
     with tab2: _tab_printables()
@@ -1217,7 +1416,6 @@ def _coach_view():
     with tab4: show_rankings_tab()
     with tab5: _tab_roster_management()
     with tab6: _tab_manage()
-
 
 # ==========================================
 # COACH TAB: PRINTABLES
@@ -1229,8 +1427,8 @@ def _tab_printables():
       - Workout Sheets: configure and print a blank workout clipboard sheet
       - Attendance Sheets: blank weekly sign-in grids
     """
-    st.subheader("📋 Printables")
-    st.markdown("Generate sheets to bring to practice or a meet. Data entry happens in the **✏️ Data Entry** tab after the event.")
+    st.subheader("Printables")
+    st.markdown("Generate sheets to bring to practice or a meet. Data entry happens in the **Data Entry** tab after the event.")
     action = st.radio(
         "What do you need?",
         ["Meet Sheet — Create New", "Meet Sheet — Reprint Existing", "Workout Sheet", "Attendance Sheet"],
@@ -1255,7 +1453,7 @@ def _printable_new_meet():
     and generates a downloadable HTML split sheet.
     """
     st.markdown("### Create New Meet & Print Split Sheet")
-    st.markdown("Assign runners to each race below. This saves the meet to the database so you can enter times in **✏️ Data Entry** after the meet.")
+    st.markdown("Assign runners to each race below. This saves the meet to the database so you can enter times in **Data Entry** after the meet.")
 
     c_m1, c_m2 = st.columns(2)
     with c_m1: p_meet = st.text_input("Meet Name", placeholder="e.g. Asics Invitational", autocomplete="off")
@@ -1314,7 +1512,7 @@ def _printable_new_meet():
             html_body = _build_split_sheet_html(p_meet, races_data, roster_data,
                                                  races_to_print, meet_date=p_date)
             final_html = wrap_html_for_print(f"{p_meet} Split Sheet", html_body)
-            st.success(f"✅ '{p_meet}' saved! Download your sheet below, then enter times in **✏️ Data Entry** after the meet.")
+            st.success(f"'{p_meet}' saved! Download your sheet below, then enter times in **Data Entry** after the meet.")
             st.download_button(
                 label="⬇️ Download Split Sheet (HTML)",
                 data=final_html,
@@ -1356,10 +1554,10 @@ def _printable_workout_sheet():
     Auto-switches to landscape when rep count > 7.
     Includes the relevant rest cycle table at the bottom of each page.
     This does NOT save anything to the database — it is a print-only tool.
-    Data entry happens in ✏️ Data Entry → Workouts after practice.
+    Data entry happens in Data Entry → Workouts after practice.
     """
     st.markdown("### Print Blank Workout Sheet")
-    st.info("This generates a print-ready sheet to bring to practice. Enter actual splits afterward in **✏️ Data Entry → Workouts**.")
+    st.info("This generates a print-ready sheet to bring to practice. Enter actual splits afterward in **Data Entry → Workouts**.")
 
     w_col1, w_col2, w_col3 = st.columns(3)
     with w_col1:
@@ -1400,7 +1598,7 @@ def _printable_workout_sheet():
             force_landscape=force_landscape
         )
         orient = "landscape" if force_landscape else "portrait"
-        st.success(f"✅ Workout sheet ready! ({orient} — Boys and Girls on separate pages)")
+        st.success(f"Workout sheet ready! ({orient} — Boys and Girls on separate pages)")
         st.download_button(
             label="⬇️ Download Workout Sheet (HTML)",
             data=final_html,
@@ -1468,8 +1666,8 @@ def _tab_data_entry():
       - Race Results: enter/edit finish times for any existing meet
       - Workouts: log splits from a completed practice, or edit/delete
     """
-    st.subheader("✏️ Data Entry")
-    st.markdown("Enter results after the event. To create a new meet or print a workout sheet, use the **📋 Printables** tab.")
+    st.subheader("Data Entry")
+    st.markdown("Enter results after the event. To create a new meet or print a workout sheet, use the **Printables** tab.")
     de_type = st.radio("Entry Type:", ["Race Results", "Workouts"], horizontal=True)
     st.markdown("---")
 
@@ -1555,7 +1753,7 @@ def _de_race_results():
                 races_data.loc[mask, "Mile_2"]     = str(row["Mile 2"]).strip()   if pd.notna(row["Mile 2"])    else ""
                 races_data.loc[mask, "Total_Time"] = str(row["Total Time"]).strip() if pd.notna(row["Total Time"]) else ""
             with st.spinner("Saving..."): conn.update(worksheet="Races", data=races_data)
-            st.success("✅ Results saved!"); st.cache_data.clear(); st.rerun()
+            st.success("Results saved!"); st.cache_data.clear(); st.rerun()
     with col_del:
         if st.button("🗑️ Delete Entire Race", use_container_width=True):
             keep = races_data[~((races_data["Meet_Name"] == sel_meet) &
@@ -1570,7 +1768,7 @@ def _de_workouts():
 
     if workout_action == "Log New Workout":
         if st.session_state["workout_saved"]:
-            st.success("✅ Workout saved to the database!")
+            st.success("Workout saved to the database!")
             if st.button("Log Another Workout"):
                 st.session_state["workout_saved"] = False; st.rerun()
             return
@@ -1769,7 +1967,7 @@ def _de_workouts():
                              for _, row in edited_df.iterrows()]
                 updated = pd.concat([keep, pd.DataFrame(new_rows)], ignore_index=True)
                 with st.spinner("Updating..."): conn.update(worksheet="Workouts", data=updated)
-                st.success("✅ Workout updated!"); st.cache_data.clear(); st.rerun()
+                st.success("Workout updated!"); st.cache_data.clear(); st.rerun()
         with col_del:
             if st.button("🗑️ Delete This Workout", use_container_width=True):
                 keep = workouts_data[~((workouts_data["Date"] == old_date) &
@@ -1818,7 +2016,7 @@ def _tab_manage():
                         races_data.loc[(races_data["Meet_Name"] == m) &
                                        (races_data["Date"] == d), "Weight"] = w
                     with st.spinner("Saving..."): conn.update(worksheet="Races", data=races_data)
-                    st.success("✅ Weights saved!"); st.cache_data.clear(); st.rerun()
+                    st.success("Weights saved!"); st.cache_data.clear(); st.rerun()
 
     elif action == "Archive a Meet":
         st.subheader("Archive a Meet")
@@ -1840,7 +2038,7 @@ def _tab_manage():
                     races_data.loc[(races_data["Meet_Name"] == m_name) &
                                    (races_data["Date"] == m_date), "Active"] = "FALSE"
                     with st.spinner("Archiving..."): conn.update(worksheet="Races", data=races_data)
-                    st.success(f"✅ '{m_name}' archived."); st.cache_data.clear(); st.rerun()
+                    st.success(f"'{m_name}' archived."); st.cache_data.clear(); st.rerun()
 
     elif action == "Pacing & Rest Tables":
         st.subheader("VDOT Paces & Rest Cycles")
@@ -1851,7 +2049,7 @@ def _tab_manage():
             if st.button("💾 Save Pace Chart", type="primary"):
                 try:
                     with st.spinner("Saving..."): conn.update(worksheet="VDOT", data=edited_vdot)
-                    st.success("✅ Pace chart saved!"); st.cache_data.clear()
+                    st.success("Pace chart saved!"); st.cache_data.clear()
                 except Exception:
                     st.error("Missing tab — add a sheet named **VDOT** in your Google Sheet.")
         with t2:
@@ -1859,7 +2057,7 @@ def _tab_manage():
             if st.button("💾 Save Rest Cycles", type="primary"):
                 try:
                     with st.spinner("Saving..."): conn.update(worksheet="Rest", data=edited_rest)
-                    st.success("✅ Rest cycles saved!"); st.cache_data.clear()
+                    st.success("Rest cycles saved!"); st.cache_data.clear()
                 except Exception:
                     st.error("Missing tab — add a sheet named **Rest** in your Google Sheet.")
 
@@ -1870,7 +2068,7 @@ def _tab_manage():
         if st.button("💾 Save Documents", type="primary"):
             try:
                 with st.spinner("Saving..."): conn.update(worksheet="Documents", data=edited_docs)
-                st.success("✅ Documents updated!"); st.cache_data.clear(); st.rerun()
+                st.success("Documents updated!"); st.cache_data.clear(); st.rerun()
             except Exception:
                 st.error("Missing tab — add a sheet named **Documents** in your Google Sheet.")
         st.markdown("---")
