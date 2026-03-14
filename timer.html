@@ -6,755 +6,335 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>MCXC Race Timer</title>
-
 <style>
-  /* ── Design: Utilitarian precision. Race-day tool must be readable in sun,
-     operable with one thumb, zero confusion under pressure. Dark background
-     reduces glare outdoors. Crimson/gold accent matches team identity. ── */
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&family=Share+Tech+Mono&display=swap');
 
-  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&family=Share+Tech+Mono&display=swap');
+:root {
+  --crimson:  #8B2331;
+  --crimson-d:#6B1824;
+  --navy:     #0C223F;
+  --gold:     #C7B683;
+  --bg:       #0a0f1a;
+  --surface:  #111827;
+  --surface2: #1c2639;
+  --border:   #2a3a52;
+  --text:     #e8edf5;
+  --muted:    #6b7fa3;
+  --green:    #22c55e;
+  --amber:    #f59e0b;
+  --red:      #ef4444;
+  --mono:     'Share Tech Mono', monospace;
+  --head:     'Barlow Condensed', sans-serif;
+  --body:     'Barlow', sans-serif;
+}
 
-  :root {
-    --crimson:  #8B2331;
-    --crimson-d:#6B1824;
-    --navy:     #0C223F;
-    --gold:     #C7B683;
-    --bg:       #0a0f1a;
-    --surface:  #111827;
-    --surface2: #1c2639;
-    --border:   #2a3a52;
-    --text:     #e8edf5;
-    --muted:    #6b7fa3;
-    --green:    #22c55e;
-    --amber:    #f59e0b;
-    --red:      #ef4444;
-    --mono:     'Share Tech Mono', monospace;
-    --head:     'Barlow Condensed', sans-serif;
-    --body:     'Barlow', sans-serif;
-  }
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body {
+  font-family: var(--body);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
 
-  body {
-    font-family: var(--body);
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100dvh;
-    overflow-x: hidden;
-  }
+/* ── SCREENS ── */
+.screen { display: none; min-height: 100dvh; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+.screen.active { display: flex; }
+#timer-screen { display: none; flex-direction: column; min-height: 100dvh; max-width: 480px; margin: 0 auto; padding: 0; }
+#timer-screen.active { display: flex; }
 
-  /* ── SETUP SCREEN ── */
-  #setup-screen {
-    min-height: 100dvh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    gap: 0;
-  }
+/* ── LOGO ── */
+.logo-block { text-align: center; margin-bottom: 32px; }
+.logo-block .team-name { font-family: var(--head); font-size: 42px; font-weight: 900; letter-spacing: 3px; color: var(--crimson); text-transform: uppercase; line-height: 1; }
+.logo-block .tool-name { font-family: var(--head); font-size: 18px; font-weight: 400; letter-spacing: 6px; color: var(--muted); text-transform: uppercase; margin-top: 4px; }
 
-  .logo-block {
-    text-align: center;
-    margin-bottom: 32px;
-  }
-  .logo-block .team-name {
-    font-family: var(--head);
-    font-size: 42px;
-    font-weight: 900;
-    letter-spacing: 3px;
-    color: var(--crimson);
-    text-transform: uppercase;
-    line-height: 1;
-  }
-  .logo-block .tool-name {
-    font-family: var(--head);
-    font-size: 18px;
-    font-weight: 400;
-    letter-spacing: 6px;
-    color: var(--muted);
-    text-transform: uppercase;
-    margin-top: 4px;
-  }
+/* ── CARDS ── */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px 24px; width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 18px; }
 
-  .setup-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 28px 24px;
-    width: 100%;
-    max-width: 420px;
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-  }
+/* ── FORM ELEMENTS ── */
+.field-label { font-family: var(--head); font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+input, select { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: var(--body); font-size: 16px; padding: 12px 14px; outline: none; appearance: none; -webkit-appearance: none; }
+input:focus, select:focus { border-color: var(--crimson); }
+select option { background: var(--surface2); }
 
-  .field-label {
-    font-family: var(--head);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 6px;
-  }
+/* ── PIN PAD ── */
+.pin-display { font-family: var(--mono); font-size: 32px; letter-spacing: 12px; text-align: center; color: var(--text); background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 60px; }
+.pin-display.error { border-color: var(--red); color: var(--red); }
+.pin-display.success { border-color: var(--green); color: var(--green); }
+.pin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.pin-key { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 18px; font-family: var(--head); font-size: 22px; font-weight: 700; color: var(--text); cursor: pointer; text-align: center; transition: all 0.1s; user-select: none; -webkit-user-select: none; }
+.pin-key:active { background: var(--crimson); border-color: var(--crimson); transform: scale(0.95); }
+.pin-key.zero { grid-column: 2; }
+.pin-key.del { background: transparent; color: var(--muted); border-color: transparent; }
 
-  input, select {
-    width: 100%;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-family: var(--body);
-    font-size: 16px;
-    padding: 12px 14px;
-    outline: none;
-    appearance: none;
-    -webkit-appearance: none;
-  }
-  input:focus, select:focus {
-    border-color: var(--crimson);
-  }
-  select option { background: var(--surface2); }
+/* ── BUTTONS ── */
+.btn { display: flex; align-items: center; justify-content: center; gap: 8px; border: none; border-radius: 10px; cursor: pointer; font-family: var(--head); font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; transition: all 0.15s; user-select: none; -webkit-user-select: none; }
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--crimson); color: #fff; font-size: 16px; padding: 16px; width: 100%; }
+.btn-primary:hover { background: var(--crimson-d); }
+.btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; transform: none; }
+.btn-secondary { background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-size: 13px; padding: 10px 16px; }
+.btn-secondary:hover { border-color: var(--gold); color: var(--gold); }
+.btn-danger { background: transparent; border: 1px solid var(--red); color: var(--red); font-size: 13px; padding: 10px 16px; }
+.btn-ghost { background: transparent; border: none; color: var(--muted); font-size: 12px; padding: 8px; font-family: var(--head); letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }
+.btn-ghost:hover { color: var(--text); }
 
-  .btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    border: none;
-    border-radius: 10px;
-    cursor: pointer;
-    font-family: var(--head);
-    font-weight: 700;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    transition: all 0.15s;
-    user-select: none;
-    -webkit-user-select: none;
-  }
-  .btn:active { transform: scale(0.97); }
+/* ── STATUS ── */
+.status-row { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+.status-dot.offline { background: var(--red); animation: none; }
+.status-dot.connecting { background: var(--amber); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
-  .btn-primary {
-    background: var(--crimson);
-    color: #fff;
-    font-size: 16px;
-    padding: 16px;
-    width: 100%;
-  }
-  .btn-primary:hover { background: var(--crimson-d); }
-  .btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; transform: none; }
+/* ── ADMIN SCREEN ── */
+.pin-list { display: flex; flex-direction: column; gap: 8px; }
+.pin-item { display: flex; align-items: center; justify-content: space-between; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.pin-item-name { font-family: var(--head); font-size: 16px; font-weight: 600; }
+.pin-item-pin { font-family: var(--mono); font-size: 18px; color: var(--gold); }
+.del-pin-btn { font-size: 18px; color: var(--muted); background: none; border: none; cursor: pointer; padding: 0 4px; }
+.del-pin-btn:hover { color: var(--red); }
 
-  .btn-secondary {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    color: var(--text);
-    font-size: 13px;
-    padding: 10px 16px;
-  }
-  .btn-secondary:hover { border-color: var(--gold); color: var(--gold); }
+/* ── TIMER SCREEN ── */
+.timer-header { background: var(--navy); padding: 12px 16px; border-bottom: 2px solid var(--crimson); position: sticky; top: 0; z-index: 100; }
+.header-top { display: flex; align-items: center; justify-content: space-between; }
+.meet-title { font-family: var(--head); font-size: 16px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; }
+.conn-badge { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); font-family: var(--head); letter-spacing: 1px; text-transform: uppercase; }
 
-  .btn-danger {
-    background: transparent;
-    border: 1px solid var(--red);
-    color: var(--red);
-    font-size: 13px;
-    padding: 10px 16px;
-  }
+.stopwatch-block { background: var(--surface); padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+.clock-display { font-family: var(--mono); font-size: 44px; color: var(--text); letter-spacing: -1px; line-height: 1; }
+.clock-display.running { color: var(--green); }
+.clock-display.stopped { color: var(--amber); }
 
-  .status-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: var(--green);
-    animation: pulse 2s infinite;
-  }
-  .status-dot.offline { background: var(--red); animation: none; }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
+.start-btn { background: var(--green); color: #000; font-family: var(--head); font-size: 18px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; border: none; border-radius: 10px; padding: 14px 24px; cursor: pointer; transition: all 0.15s; min-width: 90px; text-align: center; }
+.start-btn:active { transform: scale(0.95); }
+.start-btn.running { background: var(--amber); }
+.start-btn.waiting { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); cursor: default; }
 
-  /* ── TIMER SCREEN ── */
-  #timer-screen {
-    display: none;
-    flex-direction: column;
-    min-height: 100dvh;
-    max-width: 480px;
-    margin: 0 auto;
-  }
+.split-selector { display: flex; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); gap: 0; }
+.split-btn { flex: 1; padding: 10px 4px; font-family: var(--head); font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); cursor: pointer; transition: all 0.15s; text-align: center; }
+.split-btn:first-child { border-radius: 8px 0 0 8px; }
+.split-btn:last-child  { border-radius: 0 8px 8px 0; }
+.split-btn:not(:first-child) { border-left: none; }
+.split-btn.active { background: var(--crimson); color: #fff; border-color: var(--crimson); }
 
-  /* Header bar */
-  .timer-header {
-    background: var(--navy);
-    padding: 12px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    border-bottom: 2px solid var(--crimson);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-  }
-  .header-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .meet-title {
-    font-family: var(--head);
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 70%;
-  }
-  .conn-badge {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    color: var(--muted);
-    font-family: var(--head);
-    letter-spacing: 1px;
-    text-transform: uppercase;
-  }
+.coach-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: var(--surface2); border-bottom: 1px solid var(--border); }
+.coach-name-label { font-family: var(--head); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); font-size: 13px; }
+.race-label-small { color: var(--muted); font-size: 11px; }
 
-  /* Stopwatch */
-  .stopwatch-block {
-    background: var(--surface);
-    margin: 0;
-    padding: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid var(--border);
-  }
-  .clock-display {
-    font-family: var(--mono);
-    font-size: 44px;
-    color: var(--text);
-    letter-spacing: -1px;
-    line-height: 1;
-  }
-  .clock-display.running { color: var(--green); }
-  .clock-display.stopped { color: var(--amber); }
+.runner-list { flex: 1; overflow-y: auto; padding: 8px 12px 120px; }
+.section-divider { font-family: var(--head); font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); padding: 10px 2px 6px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
 
-  .start-btn {
-    background: var(--green);
-    color: #000;
-    font-family: var(--head);
-    font-size: 18px;
-    font-weight: 900;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    border: none;
-    border-radius: 10px;
-    padding: 14px 24px;
-    cursor: pointer;
-    transition: all 0.15s;
-    min-width: 90px;
-    text-align: center;
-  }
-  .start-btn:active { transform: scale(0.95); }
-  .start-btn.running { background: var(--amber); }
-  .start-btn.waiting { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); cursor: default; }
+.runner-row { display: flex; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 6px; overflow: hidden; transition: border-color 0.15s; }
+.runner-row.recorded { border-color: var(--green); }
+.runner-tap-area { flex: 1; padding: 14px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; transition: background 0.1s; user-select: none; -webkit-user-select: none; }
+.runner-tap-area:active { background: rgba(139,35,49,0.15); }
+.runner-name { font-family: var(--head); font-size: 18px; font-weight: 700; letter-spacing: 0.3px; color: var(--text); line-height: 1.1; }
+.runner-pr-label { font-size: 11px; color: var(--muted); }
 
-  /* Split selector */
-  .split-selector {
-    display: flex;
-    gap: 0;
-    padding: 12px 16px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-  }
-  .split-btn {
-    flex: 1;
-    padding: 10px 4px;
-    font-family: var(--head);
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    border: 1px solid var(--border);
-    background: var(--surface2);
-    color: var(--muted);
-    cursor: pointer;
-    transition: all 0.15s;
-    text-align: center;
-  }
-  .split-btn:first-child { border-radius: 8px 0 0 8px; }
-  .split-btn:last-child  { border-radius: 0 8px 8px 0; }
-  .split-btn:not(:first-child) { border-left: none; }
-  .split-btn.active {
-    background: var(--crimson);
-    color: #fff;
-    border-color: var(--crimson);
-  }
+.runner-time-block { display: flex; flex-direction: column; align-items: flex-end; padding: 10px 12px; min-width: 90px; gap: 3px; }
+.split-chips { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
+.split-chip { font-family: var(--mono); font-size: 12px; color: var(--muted); background: var(--surface2); border-radius: 4px; padding: 2px 6px; white-space: nowrap; }
+.split-chip.mine { color: var(--green); background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); cursor: pointer; }
+.split-chip.other { color: var(--muted); cursor: pointer; }
 
-  /* Coach info bar */
-  .coach-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 16px;
-    background: var(--surface2);
-    border-bottom: 1px solid var(--border);
-    font-size: 12px;
-  }
-  .coach-name {
-    font-family: var(--head);
-    font-weight: 600;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: var(--gold);
-    font-size: 13px;
-  }
-  .race-label {
-    color: var(--muted);
-    font-size: 11px;
-  }
+.action-bar { position: fixed; bottom: 0; left: 0; right: 0; max-width: 480px; margin: 0 auto; background: var(--navy); border-top: 2px solid var(--border); padding: 12px 16px; display: flex; gap: 10px; z-index: 100; }
+.undo-btn { flex: 1; background: var(--surface2); border: 1px solid var(--border); color: var(--amber); font-family: var(--head); font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 14px; border-radius: 10px; cursor: pointer; transition: all 0.15s; }
+.undo-btn:active { transform: scale(0.97); }
+.undo-btn:disabled { color: var(--border); cursor: not-allowed; }
+.save-btn { flex: 2; background: var(--crimson); border: none; color: #fff; font-family: var(--head); font-size: 14px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; padding: 14px; border-radius: 10px; cursor: pointer; transition: all 0.15s; }
+.save-btn:active { transform: scale(0.97); background: var(--crimson-d); }
 
-  /* Runner list */
-  .runner-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: 8px 12px 120px;
-  }
+.offline-bar { display: none; background: var(--amber); color: #000; font-family: var(--head); font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; text-align: center; padding: 6px; }
 
-  .runner-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    margin-bottom: 6px;
-    padding: 0;
-    overflow: hidden;
-    transition: border-color 0.15s;
-  }
-  .runner-row.recorded { border-color: var(--green); }
-  .runner-row.recorded-other { border-color: var(--border); opacity: 0.6; }
+/* ── MODALS ── */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 200; align-items: center; justify-content: center; padding: 24px; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 16px; }
+.modal-title { font-family: var(--head); font-size: 20px; font-weight: 700; color: var(--text); }
+.modal-sub { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.modal-row { display: flex; gap: 10px; }
 
-  .runner-tap-area {
-    flex: 1;
-    padding: 14px 14px;
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    transition: background 0.1s;
-    -webkit-user-select: none;
-    user-select: none;
-  }
-  .runner-tap-area:active { background: rgba(139,35,49,0.15); }
+/* ── TOAST ── */
+.toast { position: fixed; top: 16px; left: 50%; transform: translateX(-50%) translateY(-80px); background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 10px 20px; font-family: var(--head); font-size: 13px; letter-spacing: 0.5px; color: var(--text); z-index: 300; transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); white-space: nowrap; box-shadow: 0 4px 24px rgba(0,0,0,0.4); }
+.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.success { border-color: var(--green); color: var(--green); }
+.toast.error   { border-color: var(--red);   color: var(--red); }
+.toast.warning { border-color: var(--amber);  color: var(--amber); }
 
-  .runner-name {
-    font-family: var(--head);
-    font-size: 18px;
-    font-weight: 700;
-    letter-spacing: 0.3px;
-    color: var(--text);
-    line-height: 1.1;
-  }
-  .runner-pr {
-    font-size: 11px;
-    color: var(--muted);
-    font-family: var(--body);
-  }
-
-  .runner-time-block {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    padding: 10px 12px;
-    min-width: 90px;
-    gap: 3px;
-  }
-
-  .split-chips {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    align-items: flex-end;
-  }
-  .split-chip {
-    font-family: var(--mono);
-    font-size: 13px;
-    color: var(--muted);
-    background: var(--surface2);
-    border-radius: 4px;
-    padding: 2px 6px;
-    white-space: nowrap;
-  }
-  .split-chip.mine {
-    color: var(--green);
-    background: rgba(34,197,94,0.1);
-    border: 1px solid rgba(34,197,94,0.3);
-  }
-  .split-chip.edit-mode {
-    color: var(--amber);
-    background: rgba(245,158,11,0.1);
-    border: 1px solid rgba(245,158,11,0.3);
-    cursor: pointer;
-  }
-
-  .edit-btn-small {
-    font-size: 11px;
-    color: var(--muted);
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-family: var(--head);
-    letter-spacing: 0.5px;
-    padding: 0;
-    text-transform: uppercase;
-  }
-  .edit-btn-small:active { color: var(--amber); }
-
-  /* Bottom action bar */
-  .action-bar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    max-width: 480px;
-    margin: 0 auto;
-    background: var(--navy);
-    border-top: 2px solid var(--border);
-    padding: 12px 16px;
-    display: flex;
-    gap: 10px;
-    z-index: 100;
-  }
-
-  .undo-btn {
-    flex: 1;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    color: var(--amber);
-    font-family: var(--head);
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    padding: 14px;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .undo-btn:active { transform: scale(0.97); }
-  .undo-btn:disabled { color: var(--border); cursor: not-allowed; transform: none; }
-
-  .save-btn {
-    flex: 2;
-    background: var(--crimson);
-    border: none;
-    color: #fff;
-    font-family: var(--head);
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    padding: 14px;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .save-btn:active { transform: scale(0.97); background: var(--crimson-d); }
-  .save-btn.sync-pending {
-    background: var(--amber);
-    color: #000;
-  }
-
-  /* Sync banner */
-  .sync-banner {
-    display: none;
-    background: var(--amber);
-    color: #000;
-    font-family: var(--head);
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    text-align: center;
-    padding: 8px;
-  }
-
-  /* Modal overlay */
-  .modal-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.7);
-    z-index: 200;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-  }
-  .modal-overlay.open { display: flex; }
-
-  .modal {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 24px;
-    width: 100%;
-    max-width: 360px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-  .modal-title {
-    font-family: var(--head);
-    font-size: 20px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    color: var(--text);
-  }
-  .modal-sub {
-    font-size: 13px;
-    color: var(--muted);
-    line-height: 1.5;
-  }
-  .modal-row {
-    display: flex;
-    gap: 10px;
-  }
-
-  /* Toast */
-  .toast {
-    position: fixed;
-    top: 16px;
-    left: 50%;
-    transform: translateX(-50%) translateY(-80px);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 10px 20px;
-    font-family: var(--head);
-    font-size: 13px;
-    letter-spacing: 0.5px;
-    color: var(--text);
-    z-index: 300;
-    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-    white-space: nowrap;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
-  }
-  .toast.show { transform: translateX(-50%) translateY(0); }
-  .toast.success { border-color: var(--green); color: var(--green); }
-  .toast.error   { border-color: var(--red);   color: var(--red); }
-  .toast.warning { border-color: var(--amber);  color: var(--amber); }
-
-  /* Offline indicator */
-  .offline-bar {
-    display: none;
-    background: var(--amber);
-    color: #000;
-    font-family: var(--head);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    text-align: center;
-    padding: 6px;
-  }
-
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-  /* Loading spinner */
-  .spinner {
-    width: 20px; height: 20px;
-    border: 2px solid var(--border);
-    border-top-color: var(--crimson);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    display: inline-block;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .section-divider {
-    font-family: var(--head);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: var(--muted);
-    padding: 10px 2px 6px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 8px;
-  }
-
-  #loading-msg {
-    text-align: center;
-    color: var(--muted);
-    font-size: 14px;
-    padding: 20px;
-  }
-
-  /* Haptic feedback simulation via visual flash */
-  @keyframes tap-flash {
-    0%   { background: rgba(34,197,94,0.3); }
-    100% { background: transparent; }
-  }
-  .tap-flash { animation: tap-flash 0.3s ease-out; }
+.spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--crimson); border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes tap-flash { 0%{background:rgba(34,197,94,0.3)} 100%{background:transparent} }
+.tap-flash { animation: tap-flash 0.3s ease-out; }
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 </style>
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════════════
-     SETUP SCREEN
-═══════════════════════════════════════════════════ -->
-<div id="setup-screen">
+<!-- ═══ SCREEN 1: PIN LOGIN ═══ -->
+<div class="screen active" id="pin-screen">
   <div class="logo-block">
     <div class="team-name">MCXC</div>
     <div class="tool-name">Race Timer</div>
   </div>
-
-  <div class="setup-card">
-    <div>
-      <div class="field-label">Your Name</div>
-      <input type="text" id="coach-name-input" placeholder="e.g. Coach Bennett" autocomplete="off" />
+  <div class="card">
+    <div class="field-label">Enter Your PIN</div>
+    <div class="pin-display" id="pin-display">_ _ _ _</div>
+    <div class="pin-grid">
+      <div class="pin-key" onclick="pinPress('1')">1</div>
+      <div class="pin-key" onclick="pinPress('2')">2</div>
+      <div class="pin-key" onclick="pinPress('3')">3</div>
+      <div class="pin-key" onclick="pinPress('4')">4</div>
+      <div class="pin-key" onclick="pinPress('5')">5</div>
+      <div class="pin-key" onclick="pinPress('6')">6</div>
+      <div class="pin-key" onclick="pinPress('7')">7</div>
+      <div class="pin-key" onclick="pinPress('8')">8</div>
+      <div class="pin-key" onclick="pinPress('9')">9</div>
+      <div class="pin-key del" onclick="pinBackspace()">⌫</div>
+      <div class="pin-key zero" onclick="pinPress('0')">0</div>
+      <div class="pin-key del" onclick="pinClear()">✕</div>
     </div>
+    <button class="btn-ghost" onclick="showScreen('admin-screen')">Admin / Setup PINs</button>
+    <div class="status-row">
+      <div class="status-dot connecting" id="conn-dot-login"></div>
+      <span id="conn-label-login">Connecting...</span>
+    </div>
+  </div>
+</div>
 
+<!-- ═══ SCREEN 2: ADMIN — MANAGE PINs ═══ -->
+<div class="screen" id="admin-screen">
+  <div class="logo-block">
+    <div class="team-name" style="font-size:28px;">PIN Management</div>
+    <div class="tool-name">Admin Access</div>
+  </div>
+  <div class="card" style="max-width:420px;gap:14px;">
+    <div>
+      <div class="field-label">Admin Password</div>
+      <input type="password" id="admin-pass-input" placeholder="Enter admin password" />
+    </div>
+    <button class="btn btn-primary" onclick="loadAdminPins()">Load PINs</button>
+
+    <div id="admin-pin-area" style="display:none;gap:14px;flex-direction:column;">
+      <div class="field-label" style="margin-bottom:0;">Current PINs</div>
+      <div class="pin-list" id="pin-list"></div>
+      <div style="border-top:1px solid var(--border);padding-top:14px;">
+        <div class="field-label">Add New Coach PIN</div>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <input type="text" id="new-pin-name" placeholder="Coach name" style="flex:2;" autocomplete="off" />
+          <input type="text" id="new-pin-val"  placeholder="4-digit PIN" maxlength="4" style="flex:1;font-family:var(--mono);" inputmode="numeric" autocomplete="off" />
+        </div>
+        <button class="btn btn-primary" style="margin-top:10px;" onclick="addPin()">Add PIN</button>
+      </div>
+    </div>
+    <button class="btn-ghost" onclick="showScreen('pin-screen')">← Back to Login</button>
+  </div>
+</div>
+
+<!-- ═══ SCREEN 3: MEET / RACE SELECTION ═══ -->
+<div class="screen" id="setup-screen">
+  <div class="logo-block">
+    <div class="coach-welcome" id="coach-welcome" style="font-family:var(--head);font-size:22px;font-weight:700;color:var(--gold);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;"></div>
+    <div class="tool-name">Select Race</div>
+  </div>
+  <div class="card">
     <div>
       <div class="field-label">Meet</div>
       <select id="meet-select">
         <option value="">Loading meets...</option>
       </select>
     </div>
-
     <div>
       <div class="field-label">Race</div>
       <select id="race-select" disabled>
         <option value="">Select a meet first</option>
       </select>
     </div>
-
-    <div id="loading-msg" style="display:none;">
-      <div class="spinner"></div>
-      <div style="margin-top:8px;">Connecting to Firebase...</div>
+    <div id="setup-loading" style="display:none;text-align:center;color:var(--muted);font-size:13px;">
+      <div class="spinner" style="margin:0 auto 8px;"></div>Loading...
     </div>
-
-    <button class="btn btn-primary" id="enter-btn" onclick="enterTimerScreen()" disabled>
-      Enter Race Timer
-    </button>
-
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;color:var(--muted);">
-      <div class="status-dot" id="conn-dot"></div>
-      <span id="conn-label">Connecting...</span>
-    </div>
+    <button class="btn btn-primary" id="enter-btn" onclick="enterTimerScreen()" disabled>Enter Race Timer</button>
+    <button class="btn-ghost" onclick="showScreen('pin-screen')">← Back</button>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════
-     TIMER SCREEN
-═══════════════════════════════════════════════════ -->
+<!-- ═══ SCREEN 4: TIMER ═══ -->
 <div id="timer-screen">
-
   <div class="offline-bar" id="offline-bar">Offline — splits saved locally</div>
-  <div class="sync-banner" id="sync-banner">Unsynced local splits — tap Save to sync</div>
-
   <div class="timer-header">
     <div class="header-top">
-      <div class="meet-title" id="header-meet-title">Meet Name</div>
+      <div class="meet-title" id="header-meet-title">Meet</div>
       <div class="conn-badge">
         <div class="status-dot" id="timer-conn-dot"></div>
         <span id="timer-conn-label">Live</span>
       </div>
     </div>
   </div>
-
   <div class="stopwatch-block">
     <div class="clock-display" id="clock">00:00.0</div>
     <button class="start-btn" id="start-btn" onclick="handleStartStop()">START</button>
   </div>
-
   <div class="split-selector">
-    <button class="split-btn active" id="split-mile1" onclick="selectSplit('mile1')">Mile 1</button>
-    <button class="split-btn" id="split-mile2" onclick="selectSplit('mile2')">Mile 2</button>
-    <button class="split-btn" id="split-finish" onclick="selectSplit('finish')">Finish</button>
+    <button class="split-btn active" id="split-mile1"   onclick="selectSplit('mile1')">Mile 1</button>
+    <button class="split-btn"        id="split-mile2"   onclick="selectSplit('mile2')">Mile 2</button>
+    <button class="split-btn"        id="split-finish"  onclick="selectSplit('finish')">Finish</button>
   </div>
-
   <div class="coach-bar">
-    <div class="coach-name" id="coach-display">Coach</div>
-    <div class="race-label" id="race-display">Race Name</div>
+    <div class="coach-name-label" id="coach-display"></div>
+    <div class="race-label-small" id="race-display"></div>
   </div>
-
   <div class="runner-list" id="runner-list">
-    <div style="text-align:center;color:var(--muted);padding:40px 0;">
-      Loading runners...
-    </div>
+    <div style="text-align:center;color:var(--muted);padding:40px 0;">Loading runners...</div>
   </div>
-
   <div class="action-bar">
     <button class="undo-btn" id="undo-btn" onclick="undoLastTap()" disabled>↩ Undo</button>
-    <button class="save-btn" id="save-btn" onclick="openSaveModal()">Save to Dashboard</button>
+    <button class="save-btn" id="save-btn" onclick="openSaveModal()">Export Times</button>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════
-     EDIT TIME MODAL
-═══════════════════════════════════════════════════ -->
+<!-- ═══ MODAL: EDIT TIME ═══ -->
 <div class="modal-overlay" id="edit-modal">
   <div class="modal">
     <div class="modal-title">Edit Split Time</div>
-    <div class="modal-sub" id="edit-modal-sub">Editing Mile 1 for Runner Name</div>
+    <div class="modal-sub" id="edit-modal-sub"></div>
     <div>
-      <div class="field-label">Time (MM:SS.t or MM:SS)</div>
-      <input type="text" id="edit-time-input" placeholder="e.g. 5:42.3" pattern="[0-9]+:[0-9]{2}(\.[0-9])?" />
+      <div class="field-label">Time (M:SS or M:SS.t)</div>
+      <input type="text" id="edit-time-input" placeholder="e.g. 5:42 or 18:33.5" inputmode="decimal" />
     </div>
     <div class="modal-row">
       <button class="btn btn-secondary" style="flex:1" onclick="closeEditModal()">Cancel</button>
-      <button class="btn btn-primary" style="flex:1" onclick="saveEditedTime()">Save</button>
+      <button class="btn btn-primary"   style="flex:1" onclick="saveEditedTime()">Save</button>
     </div>
     <button class="btn btn-danger" style="width:100%" onclick="clearSplitTime()">Clear This Split</button>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════
-     SAVE TO DASHBOARD MODAL
-═══════════════════════════════════════════════════ -->
+<!-- ═══ MODAL: EXPORT ═══ -->
 <div class="modal-overlay" id="save-modal">
   <div class="modal">
-    <div class="modal-title">Save to Dashboard</div>
+    <div class="modal-title">Export Times</div>
     <div class="modal-sub">
-      This will write all recorded splits to your Google Sheet. Times already entered in the dashboard will be overwritten only if a split was recorded here.
+      Copy the times below and paste them into the <strong>Data Entry → Race Results → Import from Timer</strong> panel in your Streamlit dashboard.
     </div>
-    <div id="save-summary" style="background:var(--surface2);border-radius:8px;padding:12px;font-size:13px;color:var(--muted);line-height:1.8;"></div>
-    <div>
-      <div class="field-label">Google Sheet ID</div>
-      <input type="text" id="sheet-id-input" placeholder="Paste your Sheet ID here" autocomplete="off" />
-      <div style="font-size:11px;color:var(--muted);margin-top:4px;">
-        Found in your Sheet URL: .../spreadsheets/d/<strong style="color:var(--gold)">THIS_PART</strong>/edit
-      </div>
-    </div>
+    <div id="save-summary" style="font-size:13px;color:var(--muted);line-height:1.8;background:var(--surface2);border-radius:8px;padding:12px;"></div>
+    <textarea id="export-json" style="width:100%;height:120px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:10px;padding:10px;resize:none;" readonly></textarea>
     <div class="modal-row">
-      <button class="btn btn-secondary" style="flex:1" onclick="closeSaveModal()">Cancel</button>
-      <button class="btn btn-primary" style="flex:1" id="confirm-save-btn" onclick="saveToGoogleSheets()">Save</button>
+      <button class="btn btn-secondary" style="flex:1" onclick="closeSaveModal()">Close</button>
+      <button class="btn btn-primary"   style="flex:1" onclick="copyExport()">Copy to Clipboard</button>
     </div>
   </div>
 </div>
 
-<!-- Toast notification -->
 <div class="toast" id="toast"></div>
 
-<!-- ═══════════════════════════════════════════════════
-     FIREBASE + APP LOGIC
-═══════════════════════════════════════════════════ -->
+<!-- ═══ FIREBASE + APP LOGIC ═══ -->
 <script type="module">
-import { initializeApp }           from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, get, onValue, serverTimestamp }
-                                   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { initializeApp }  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-// ── Firebase config ──────────────────────────────────────────────────────────
-const firebaseConfig = {
+const FB = {
   apiKey:            "AIzaSyAKFLshFCubsJtJ5TTb7FFWB2kUl-wph_c",
   authDomain:        "mcxc-timer.firebaseapp.com",
   databaseURL:       "https://mcxc-timer-default-rtdb.firebaseio.com",
@@ -764,689 +344,490 @@ const firebaseConfig = {
   appId:             "1:296882737086:web:bc80b8573dd560ae9ef3ef"
 };
 
-const app = initializeApp(firebaseConfig);
+const app = initializeApp(FB);
 const db  = getDatabase(app);
 
-// ── App state ────────────────────────────────────────────────────────────────
-let isOnline       = false;
-let raceStartedAt  = null;   // UTC ms from Firebase (authoritative)
-let clockInterval  = null;
-let currentSplit   = 'mile1';
-let coachName      = '';
-let selectedMeet   = '';
-let selectedRace   = '';
-let runnersData    = [];     // [{username, name, pr}]
-let recordedSplits = {};     // {username: {mile1: ms, mile2: ms, finish: ms, coach: name}}
-let lastTapStack   = [];     // for undo [{username, split, prevValue}]
-let pendingLocal   = {};     // splits stored offline: {username: {split: localMs}}
-let localStartTime = null;   // device clock when START was pressed (offline fallback)
+// ── State ────────────────────────────────────────────────────────────────────
+let isOnline      = navigator.onLine;
+let coachName     = '';
+let selectedMeet  = '';   // display name
+let selectedMeetKey = '';
+let selectedRace  = '';   // display name
+let selectedRaceKey = '';
+let raceStartedAt = null; // UTC ms
+let clockInterval = null;
+let currentSplit  = 'mile1';
+let runnersData   = [];   // [{username, name, pr}]
+let recordedSplits= {};   // {username: {mile1,mile2,finish,coach}}
+let lastTapStack  = [];   // undo history
+let pendingLocal  = {};   // offline buffer
+let editingUser   = null;
+let editingSplit  = null;
 
-// ── Utility: format milliseconds → MM:SS.t ──────────────────────────────────
-function msToDisplay(ms, decimals = 1) {
-  if (!ms || ms <= 0) return '—';
-  const totalSec = ms / 1000;
-  const mins = Math.floor(totalSec / 60);
-  const secs = (totalSec % 60).toFixed(decimals);
-  const secPadded = parseFloat(secs) < 10 ? '0' + secs : secs;
-  return `${mins}:${secPadded}`;
+// ── Utilities ────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+function msToDisplay(ms, dec=1) {
+  if (!ms || ms<=0) return '—';
+  const s = ms/1000, m = Math.floor(s/60), sec = (s%60).toFixed(dec);
+  return `${m}:${parseFloat(sec)<10?'0':''}${sec}`;
 }
-
 function msToMinSec(ms) {
-  // Returns "MM:SS" for saving to Google Sheets
-  if (!ms || ms <= 0) return '';
-  const totalSec = Math.round(ms / 1000);
-  const mins = Math.floor(totalSec / 60);
-  const secs = totalSec % 60;
-  return `${mins}:${secs.toString().padStart(2,'0')}`;
+  if (!ms || ms<=0) return '';
+  const s = Math.round(ms/1000), m = Math.floor(s/60);
+  return `${m}:${(s%60).toString().padStart(2,'0')}`;
 }
-
 function displayToMs(str) {
-  // Parse "MM:SS.t" or "MM:SS" back to ms
   if (!str || !str.includes(':')) return null;
   const [mPart, sPart] = str.split(':');
-  const ms = (parseInt(mPart) * 60 + parseFloat(sPart)) * 1000;
-  return isNaN(ms) ? null : ms;
+  const ms = (parseInt(mPart)*60 + parseFloat(sPart))*1000;
+  return isNaN(ms) ? null : Math.round(ms);
+}
+function elapsedMs() { return raceStartedAt ? Date.now()-raceStartedAt : 0; }
+
+function showToast(msg, type='') {
+  const t = $('toast');
+  t.textContent = msg; t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-function elapsedMs() {
-  if (!raceStartedAt) return 0;
-  return Date.now() - raceStartedAt;
-}
-
-// ── Toast ────────────────────────────────────────────────────────────────────
-function showToast(msg, type = '') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = `toast ${type} show`;
-  setTimeout(() => { t.classList.remove('show'); }, 2500);
-}
-
-// ── Online/offline detection ─────────────────────────────────────────────────
-function updateConnectionUI(online) {
-  isOnline = online;
-  const dots  = document.querySelectorAll('.status-dot');
-  const labels = document.querySelectorAll('#conn-label, #timer-conn-label');
-  const bar   = document.getElementById('offline-bar');
-  dots.forEach(d => d.classList.toggle('offline', !online));
-  labels.forEach(l => l.textContent = online ? 'Live' : 'Offline');
-  bar.style.display = online ? 'none' : 'block';
-  if (online && Object.keys(pendingLocal).length > 0) {
-    syncLocalToFirebase();
-  }
-}
-
-window.addEventListener('online',  () => updateConnectionUI(true));
-window.addEventListener('offline', () => updateConnectionUI(false));
-
-// ── Firebase connection check ─────────────────────────────────────────────────
-const connRef = ref(db, '.info/connected');
-onValue(connRef, snap => updateConnectionUI(!!snap.val()));
-
-// ── Load meets from Firebase (populated when coach creates meet in Streamlit) ─
-// We also allow manual meet entry as fallback
-async function loadMeets() {
-  document.getElementById('loading-msg').style.display = 'block';
-  try {
-    const meetsSnap = await get(ref(db, 'meets'));
-    const meetSel = document.getElementById('meet-select');
-    meetSel.innerHTML = '<option value="">— Select Meet —</option>';
-
-    if (meetsSnap.exists()) {
-      const meets = meetsSnap.val();
-      Object.keys(meets).sort().forEach(meetKey => {
-        const m = meets[meetKey];
-        const opt = document.createElement('option');
-        opt.value = meetKey;
-        opt.textContent = m.name || meetKey;
-        meetSel.appendChild(opt);
-      });
-    }
-
-    // Always add manual entry option
-    const manual = document.createElement('option');
-    manual.value = '__manual__';
-    manual.textContent = '+ Enter meet name manually';
-    meetSel.appendChild(manual);
-
-  } catch(e) {
-    showToast('Could not load meets', 'error');
-  }
-  document.getElementById('loading-msg').style.display = 'none';
-  checkSetupReady();
-}
-
-// ── Setup screen: meet/race selection ────────────────────────────────────────
-document.getElementById('meet-select').addEventListener('change', async function() {
-  const raceSel = document.getElementById('race-select');
-  raceSel.innerHTML = '<option value="">Loading races...</option>';
-  raceSel.disabled = true;
-
-  const meetKey = this.value;
-  if (!meetKey) { raceSel.innerHTML = '<option value="">Select a meet first</option>'; checkSetupReady(); return; }
-
-  if (meetKey === '__manual__') {
-    // Allow manual meet name entry
-    const name = prompt('Enter meet name exactly as it appears in your dashboard:');
-    if (name) {
-      selectedMeet = name.trim();
-      raceSel.innerHTML = '<option value="">— Select Race —</option>';
-      // Try to load races for this meet from Firebase
-      await loadRacesForMeet(name.trim(), raceSel);
-    }
-    return;
-  }
-
-  try {
-    const snap = await get(ref(db, `meets/${meetKey}`));
-    if (snap.exists()) {
-      selectedMeet = snap.val().name || meetKey;
-      raceSel.innerHTML = '<option value="">— Select Race —</option>';
-      const races = snap.val().races || {};
-      Object.keys(races).forEach(raceKey => {
-        const opt = document.createElement('option');
-        opt.value = raceKey;
-        opt.textContent = races[raceKey].name || raceKey;
-        raceSel.appendChild(opt);
-      });
-      raceSel.disabled = false;
-    }
-  } catch(e) {
-    raceSel.innerHTML = '<option value="">Could not load races</option>';
-  }
-  checkSetupReady();
-});
-
-async function loadRacesForMeet(meetName, raceSel) {
-  // Try Firebase first, then just allow manual entry
-  try {
-    const snap = await get(ref(db, `meets`));
-    if (snap.exists()) {
-      const meets = snap.val();
-      for (const key of Object.keys(meets)) {
-        if (meets[key].name === meetName) {
-          const races = meets[key].races || {};
-          Object.keys(races).forEach(rk => {
-            const opt = document.createElement('option');
-            opt.value = rk;
-            opt.textContent = races[rk].name || rk;
-            raceSel.appendChild(opt);
-          });
-          raceSel.disabled = false;
-          return;
-        }
-      }
-    }
-  } catch(e) {}
-  // Fallback: manual race entry
-  const manual = document.createElement('option');
-  manual.value = '__manual_race__';
-  manual.textContent = '+ Enter race name manually';
-  raceSel.appendChild(manual);
-  raceSel.disabled = false;
-}
-
-document.getElementById('race-select').addEventListener('change', function() {
-  if (this.value === '__manual_race__') {
-    const name = prompt('Enter race name:');
-    if (name) selectedRace = name.trim();
+// ── Screen navigation ────────────────────────────────────────────────────────
+window.showScreen = function(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  if (id === 'timer-screen') {
+    $('timer-screen').classList.add('active');
+    $('timer-screen').style.display = 'flex';
   } else {
-    selectedRace = this.options[this.selectedIndex]?.textContent || this.value;
+    $(id).classList.add('active');
+    $('timer-screen').style.display = 'none';
   }
-  checkSetupReady();
-});
-
-document.getElementById('coach-name-input').addEventListener('input', checkSetupReady);
-
-function checkSetupReady() {
-  const name  = document.getElementById('coach-name-input').value.trim();
-  const meet  = document.getElementById('meet-select').value;
-  const race  = document.getElementById('race-select').value;
-  document.getElementById('enter-btn').disabled = !(name && meet && race);
-}
-
-// ── Enter timer screen ────────────────────────────────────────────────────────
-window.enterTimerScreen = function() {
-  coachName    = document.getElementById('coach-name-input').value.trim();
-  const meetKey = document.getElementById('meet-select').value;
-  const raceKey = document.getElementById('race-select').value;
-  selectedRace  = document.getElementById('race-select').options[document.getElementById('race-select').selectedIndex]?.textContent || raceKey;
-
-  document.getElementById('header-meet-title').textContent = `${selectedMeet} — ${selectedRace}`;
-  document.getElementById('coach-display').textContent = coachName;
-  document.getElementById('race-display').textContent  = selectedRace;
-
-  document.getElementById('setup-screen').style.display = 'none';
-  document.getElementById('timer-screen').style.display = 'flex';
-
-  // Load runners and listen for split updates
-  loadRunners(meetKey, raceKey);
-  listenForSplits(meetKey, raceKey);
-  listenForStart(meetKey, raceKey);
-
-  // Restore local splits if any
-  const localKey = `splits_${meetKey}_${raceKey}`;
-  const stored   = localStorage.getItem(localKey);
-  if (stored) {
-    try {
-      pendingLocal = JSON.parse(stored);
-      if (Object.keys(pendingLocal).length > 0) {
-        document.getElementById('sync-banner').style.display = 'block';
-        document.getElementById('save-btn').classList.add('sync-pending');
-      }
-    } catch(e) {}
-  }
-
-  // Restore sheet ID if previously saved
-  const savedSheetId = localStorage.getItem('mcxc_sheet_id');
-  if (savedSheetId) document.getElementById('sheet-id-input').value = savedSheetId;
 };
 
-// ── Load runners ──────────────────────────────────────────────────────────────
-async function loadRunners(meetKey, raceKey) {
-  try {
-    const snap = await get(ref(db, `meets/${meetKey}/races/${raceKey}/runners`));
-    if (snap.exists()) {
-      const data = snap.val();
-      runnersData = Array.isArray(data) ? data : Object.values(data);
-    } else {
-      runnersData = [];
-    }
-  } catch(e) {
-    runnersData = [];
-  }
-  renderRunnerList();
+// ── Connection monitoring ────────────────────────────────────────────────────
+function setOnline(online) {
+  isOnline = online;
+  const dots   = document.querySelectorAll('.status-dot');
+  const labels = document.querySelectorAll('#conn-label-login,#timer-conn-label');
+  dots.forEach(d => { d.classList.toggle('offline', !online); d.classList.remove('connecting'); });
+  labels.forEach(l => l.textContent = online ? 'Live' : 'Offline');
+  $('offline-bar').style.display = online ? 'none' : 'block';
+  if (online && Object.keys(pendingLocal).length>0) syncLocalToFirebase();
+}
+window.addEventListener('online',  () => setOnline(true));
+window.addEventListener('offline', () => setOnline(false));
+onValue(ref(db, '.info/connected'), s => setOnline(!!s.val()));
+
+// ── PIN LOGIN ─────────────────────────────────────────────────────────────────
+let pinBuffer = '';
+
+window.pinPress = function(d) {
+  if (pinBuffer.length >= 4) return;
+  pinBuffer += d;
+  updatePinDisplay();
+  if (pinBuffer.length === 4) verifyPin();
+};
+window.pinBackspace = function() { pinBuffer = pinBuffer.slice(0,-1); updatePinDisplay(); };
+window.pinClear     = function() { pinBuffer = ''; updatePinDisplay(); };
+
+function updatePinDisplay() {
+  const d = $('pin-display');
+  const dots = pinBuffer.split('').map(()=>'●').join('  ');
+  const blanks = Array(4-pinBuffer.length).fill('_').join('  ');
+  d.textContent = dots + (pinBuffer.length>0 && pinBuffer.length<4 ? '  ' : '') + blanks;
+  d.className = 'pin-display';
 }
 
-// ── Listen for real-time split updates ───────────────────────────────────────
-function listenForSplits(meetKey, raceKey) {
-  onValue(ref(db, `races/${meetKey}/${raceKey}/splits`), snap => {
+async function verifyPin() {
+  try {
+    const snap = await get(ref(db, 'pins'));
+    if (!snap.exists()) {
+      // No PINs set up yet — let coach proceed with a prompt
+      const name = prompt('No PINs configured yet. Enter your name to continue:');
+      if (name) { coachName = name.trim(); proceedToSetup(); }
+      pinClear(); return;
+    }
+    const pins = snap.val();
+    const match = Object.values(pins).find(p => p.pin === pinBuffer);
+    if (match) {
+      coachName = match.name;
+      $('pin-display').className = 'pin-display success';
+      $('pin-display').textContent = match.name;
+      setTimeout(() => { pinClear(); proceedToSetup(); }, 800);
+    } else {
+      $('pin-display').className = 'pin-display error';
+      $('pin-display').textContent = 'Wrong PIN';
+      setTimeout(() => { pinClear(); updatePinDisplay(); }, 1000);
+    }
+  } catch(e) {
+    showToast('Check connection', 'error'); pinClear();
+  }
+}
+
+function proceedToSetup() {
+  $('coach-welcome').textContent = `Welcome, ${coachName}`;
+  showScreen('setup-screen');
+  loadMeets();
+}
+
+// ── ADMIN: Manage PINs ────────────────────────────────────────────────────────
+const ADMIN_PASS = 'mcxc2025'; // Change this in Firebase later
+
+window.loadAdminPins = async function() {
+  if ($('admin-pass-input').value !== ADMIN_PASS) {
+    showToast('Wrong admin password', 'error'); return;
+  }
+  try {
+    const snap = await get(ref(db, 'pins'));
+    const pins = snap.exists() ? snap.val() : {};
+    renderPinList(pins);
+    $('admin-pin-area').style.display = 'flex';
+  } catch(e) { showToast('Could not load PINs', 'error'); }
+};
+
+function renderPinList(pins) {
+  const list = $('pin-list');
+  if (Object.keys(pins).length === 0) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:13px;">No PINs set up yet.</div>';
+    return;
+  }
+  list.innerHTML = Object.keys(pins).map(k => `
+    <div class="pin-item">
+      <div>
+        <div class="pin-item-name">${pins[k].name}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="pin-item-pin">${pins[k].pin}</div>
+        <button class="del-pin-btn" onclick="deletePin('${k}')">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+window.addPin = async function() {
+  const name = $('new-pin-name').value.trim();
+  const pin  = $('new-pin-val').value.trim();
+  if (!name) { showToast('Enter a name', 'error'); return; }
+  if (!/^\d{4}$/.test(pin)) { showToast('PIN must be 4 digits', 'error'); return; }
+  const key = name.toLowerCase().replace(/\s+/g,'_') + '_' + Date.now();
+  await set(ref(db, `pins/${key}`), { name, pin });
+  showToast(`PIN added for ${name}`, 'success');
+  $('new-pin-name').value = ''; $('new-pin-val').value = '';
+  const snap = await get(ref(db, 'pins'));
+  renderPinList(snap.exists() ? snap.val() : {});
+};
+
+window.deletePin = async function(key) {
+  if (!confirm('Remove this PIN?')) return;
+  await set(ref(db, `pins/${key}`), null);
+  const snap = await get(ref(db, 'pins'));
+  renderPinList(snap.exists() ? snap.val() : {});
+  showToast('PIN removed', 'warning');
+};
+
+// ── MEET / RACE SELECTION ─────────────────────────────────────────────────────
+async function loadMeets() {
+  $('setup-loading').style.display = 'block';
+  const meetSel = $('meet-select');
+  meetSel.innerHTML = '<option value="">— Select Meet —</option>';
+  try {
+    const snap = await get(ref(db, 'meets'));
     if (snap.exists()) {
-      const data = snap.val();
-      // Merge Firebase splits into local state (don't overwrite local pending)
-      Object.keys(data).forEach(username => {
-        if (!recordedSplits[username]) recordedSplits[username] = {};
-        Object.assign(recordedSplits[username], data[username]);
+      const meets = snap.val();
+      // Sort by most recent first (using createdAt if available)
+      const sorted = Object.entries(meets).sort((a,b) => {
+        const da = a[1].date || '', db2 = b[1].date || '';
+        return db2.localeCompare(da);
+      });
+      sorted.forEach(([key, m]) => {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = m.date ? `${m.name} (${m.date})` : m.name;
+        meetSel.appendChild(opt);
+      });
+    } else {
+      meetSel.innerHTML = '<option value="">No meets found — create one in Streamlit first</option>';
+    }
+  } catch(e) {
+    meetSel.innerHTML = '<option value="">Could not load meets</option>';
+  }
+  $('setup-loading').style.display = 'none';
+  checkSetupReady();
+}
+
+$('meet-select').addEventListener('change', async function() {
+  const raceSel = $('race-select');
+  raceSel.disabled = true;
+  raceSel.innerHTML = '<option value="">Loading races...</option>';
+  selectedMeetKey = this.value;
+  if (!selectedMeetKey) { raceSel.innerHTML = '<option value="">Select a meet first</option>'; checkSetupReady(); return; }
+  const snap = await get(ref(db, `meets/${selectedMeetKey}`));
+  if (snap.exists()) {
+    selectedMeet = snap.val().name || selectedMeetKey;
+    raceSel.innerHTML = '<option value="">— Select Race —</option>';
+    const races = snap.val().races || {};
+    Object.entries(races).forEach(([key, r]) => {
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = r.dist ? `${r.name} (${r.dist})` : r.name;
+      raceSel.appendChild(opt);
+    });
+    raceSel.disabled = false;
+  }
+  checkSetupReady();
+});
+
+$('race-select').addEventListener('change', function() {
+  selectedRaceKey = this.value;
+  selectedRace    = this.options[this.selectedIndex]?.text || this.value;
+  checkSetupReady();
+});
+
+function checkSetupReady() {
+  $('enter-btn').disabled = !(selectedMeetKey && selectedRaceKey);
+}
+
+// ── ENTER TIMER ───────────────────────────────────────────────────────────────
+window.enterTimerScreen = async function() {
+  $('header-meet-title').textContent = `${selectedMeet} — ${selectedRace}`;
+  $('coach-display').textContent     = coachName;
+  $('race-display').textContent      = selectedRace;
+  showScreen('timer-screen');
+
+  // Load runners from Firebase
+  const snap = await get(ref(db, `meets/${selectedMeetKey}/races/${selectedRaceKey}/runners`));
+  runnersData = snap.exists() ? (Array.isArray(snap.val()) ? snap.val() : Object.values(snap.val())) : [];
+  renderRunnerList();
+
+  // Listen for live split updates (other coaches recording)
+  onValue(ref(db, `races/${selectedMeetKey}/${selectedRaceKey}/splits`), snap => {
+    if (snap.exists()) {
+      Object.entries(snap.val()).forEach(([u, data]) => {
+        if (!recordedSplits[u]) recordedSplits[u] = {};
+        // Only merge in splits not already set by this coach
+        ['mile1','mile2','finish'].forEach(s => {
+          if (data[s] && !recordedSplits[u][s]) recordedSplits[u][s] = data[s];
+        });
+        if (data.coach && !recordedSplits[u].coach) recordedSplits[u].coach = data.coach;
       });
       renderRunnerList();
     }
   });
-}
 
-// ── Listen for race start ─────────────────────────────────────────────────────
-function listenForStart(meetKey, raceKey) {
-  onValue(ref(db, `races/${meetKey}/${raceKey}/startedAt`), snap => {
-    if (snap.exists() && snap.val() > 0) {
+  // Listen for race start (so all coaches sync)
+  onValue(ref(db, `races/${selectedMeetKey}/${selectedRaceKey}/startedAt`), snap => {
+    if (snap.exists() && snap.val() > 0 && !raceStartedAt) {
       raceStartedAt = snap.val();
       startClock();
-      document.getElementById('start-btn').textContent = 'RUNNING';
-      document.getElementById('start-btn').className   = 'start-btn running';
+      $('start-btn').textContent = 'RUNNING';
+      $('start-btn').className   = 'start-btn running';
     }
   });
-}
 
-// ── Stopwatch ─────────────────────────────────────────────────────────────────
-function startClock() {
-  if (clockInterval) return;
-  document.getElementById('clock').className = 'clock-display running';
-  clockInterval = setInterval(updateClock, 100);
-}
+  // Restore any locally stored offline splits
+  const localKey = `splits_${selectedMeetKey}_${selectedRaceKey}`;
+  try { pendingLocal = JSON.parse(localStorage.getItem(localKey) || '{}'); } catch(e) {}
+};
 
-function updateClock() {
-  const elapsed = elapsedMs();
-  const display = msToDisplay(elapsed, 1);
-  document.getElementById('clock').textContent = display;
-}
-
+// ── STOPWATCH ─────────────────────────────────────────────────────────────────
 window.handleStartStop = function() {
   if (raceStartedAt) {
-    // Already running — only show confirmation to stop
-    if (!confirm('Stop the race clock? This cannot be undone.')) return;
-    clearInterval(clockInterval);
-    clockInterval = null;
-    document.getElementById('start-btn').textContent = 'STOPPED';
-    document.getElementById('start-btn').className   = 'start-btn waiting';
-    document.getElementById('clock').className       = 'clock-display stopped';
+    if (!confirm('Stop the clock? This cannot be undone.')) return;
+    clearInterval(clockInterval); clockInterval = null;
+    $('start-btn').textContent = 'DONE';
+    $('start-btn').className   = 'start-btn waiting';
+    $('clock').className       = 'clock-display stopped';
     return;
   }
-
-  // Start — write to Firebase (authoritative timestamp) or local fallback
   const now = Date.now();
-  localStartTime = now;
-
   if (isOnline) {
-    const meetKey = document.getElementById('meet-select').value;
-    const raceKey = document.getElementById('race-select').value;
-    set(ref(db, `races/${meetKey}/${raceKey}/startedAt`), now)
-      .then(() => {
-        raceStartedAt = now;
-        startClock();
-        document.getElementById('start-btn').textContent = 'RUNNING';
-        document.getElementById('start-btn').className   = 'start-btn running';
-        showToast('Race started — all coaches synced', 'success');
-      })
-      .catch(() => {
-        // Firebase write failed, use local
-        raceStartedAt = now;
-        startClock();
-        document.getElementById('start-btn').textContent = 'RUNNING';
-        document.getElementById('start-btn').className   = 'start-btn running';
-        showToast('Started locally (offline)', 'warning');
-      });
+    set(ref(db, `races/${selectedMeetKey}/${selectedRaceKey}/startedAt`), now)
+      .then(() => { raceStartedAt = now; startClock(); updateStartBtn(); showToast('Race started — all coaches synced', 'success'); })
+      .catch(()  => { raceStartedAt = now; startClock(); updateStartBtn(); showToast('Started (offline fallback)', 'warning'); });
   } else {
-    raceStartedAt = now;
-    startClock();
-    document.getElementById('start-btn').textContent = 'RUNNING';
-    document.getElementById('start-btn').className   = 'start-btn running';
+    raceStartedAt = now; startClock(); updateStartBtn();
     showToast('Started offline — syncs when online', 'warning');
   }
 };
 
-// ── Split selector ────────────────────────────────────────────────────────────
-window.selectSplit = function(split) {
-  currentSplit = split;
+function updateStartBtn() {
+  $('start-btn').textContent = 'RUNNING';
+  $('start-btn').className   = 'start-btn running';
+}
+
+function startClock() {
+  if (clockInterval) return;
+  $('clock').className = 'clock-display running';
+  clockInterval = setInterval(() => { $('clock').textContent = msToDisplay(elapsedMs(), 1); }, 100);
+}
+
+// ── SPLIT SELECTOR ────────────────────────────────────────────────────────────
+window.selectSplit = function(s) {
+  currentSplit = s;
   document.querySelectorAll('.split-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById(`split-${split}`).classList.add('active');
+  $(`split-${s}`).classList.add('active');
+  renderRunnerList();
 };
 
-// ── Tap runner ────────────────────────────────────────────────────────────────
+// ── TAP RUNNER ────────────────────────────────────────────────────────────────
 window.tapRunner = function(username) {
-  if (!raceStartedAt) {
-    showToast('Start the race clock first', 'warning');
-    return;
-  }
-
+  if (!raceStartedAt) { showToast('Start the clock first', 'warning'); return; }
   const elapsed = elapsedMs();
   if (elapsed <= 0) return;
 
-  // Check if already recorded for this split
-  const existing = recordedSplits[username]?.[currentSplit];
-  if (existing) {
-    // Already has a time — open edit modal instead
-    openEditModal(username, currentSplit, existing);
-    return;
+  // If already recorded, open edit modal
+  if (recordedSplits[username]?.[currentSplit]) {
+    openEditModal(username, currentSplit, recordedSplits[username][currentSplit]); return;
   }
 
-  // Record the tap
-  const prevValue = existing || null;
-  lastTapStack.push({ username, split: currentSplit, prevValue });
+  lastTapStack.push({ username, split: currentSplit, prev: null });
   if (lastTapStack.length > 20) lastTapStack.shift();
-
   if (!recordedSplits[username]) recordedSplits[username] = {};
   recordedSplits[username][currentSplit] = elapsed;
   recordedSplits[username].coach = coachName;
 
-  // Visual feedback
-  const row = document.getElementById(`runner-row-${username}`);
-  if (row) {
-    row.classList.add('tap-flash');
-    setTimeout(() => row.classList.remove('tap-flash'), 300);
-  }
+  // Visual flash
+  const row = document.getElementById(`rr-${username}`);
+  if (row) { row.classList.add('tap-flash'); setTimeout(()=>row.classList.remove('tap-flash'),300); }
 
-  document.getElementById('undo-btn').disabled = false;
-
-  // Write to Firebase
-  if (isOnline) {
-    const meetKey = document.getElementById('meet-select').value;
-    const raceKey = document.getElementById('race-select').value;
-    set(ref(db, `races/${meetKey}/${raceKey}/splits/${username}/${currentSplit}`), elapsed)
-      .catch(() => saveLocalSplit(username, currentSplit, elapsed));
-    set(ref(db, `races/${meetKey}/${raceKey}/splits/${username}/coach`), coachName).catch(() => {});
-  } else {
-    saveLocalSplit(username, currentSplit, elapsed);
-  }
-
+  $('undo-btn').disabled = false;
+  writeSplit(username, currentSplit, elapsed);
   renderRunnerList();
-
-  // Auto-advance split after finish — move fully recorded runners to bottom visually
   showToast(`${getRunnerName(username)} — ${msToDisplay(elapsed)}`, 'success');
 };
 
-function getRunnerName(username) {
-  const r = runnersData.find(r => r.username === username);
-  return r ? r.name : username;
+function getRunnerName(u) { return runnersData.find(r=>r.username===u)?.name || u; }
+
+function writeSplit(username, split, ms) {
+  if (isOnline) {
+    set(ref(db, `races/${selectedMeetKey}/${selectedRaceKey}/splits/${username}/${split}`), ms).catch(()=>storeLocal(username,split,ms));
+    set(ref(db, `races/${selectedMeetKey}/${selectedRaceKey}/splits/${username}/coach`), coachName).catch(()=>{});
+  } else { storeLocal(username, split, ms); }
 }
 
-// ── Local storage fallback ────────────────────────────────────────────────────
-function saveLocalSplit(username, split, ms) {
-  const meetKey = document.getElementById('meet-select').value;
-  const raceKey = document.getElementById('race-select').value;
-  const key = `splits_${meetKey}_${raceKey}`;
-  if (!pendingLocal[username]) pendingLocal[username] = {};
-  pendingLocal[username][split] = ms;
+function storeLocal(u, split, ms) {
+  if (!pendingLocal[u]) pendingLocal[u] = {};
+  pendingLocal[u][split] = ms;
+  const key = `splits_${selectedMeetKey}_${selectedRaceKey}`;
   localStorage.setItem(key, JSON.stringify(pendingLocal));
-  document.getElementById('sync-banner').style.display = 'block';
-  document.getElementById('save-btn').classList.add('sync-pending');
+  $('offline-bar').style.display = 'block';
 }
 
 async function syncLocalToFirebase() {
-  if (!isOnline || Object.keys(pendingLocal).length === 0) return;
-  const meetKey = document.getElementById('meet-select').value;
-  const raceKey = document.getElementById('race-select').value;
-  if (!meetKey || !raceKey) return;
-
-  const promises = [];
-  Object.keys(pendingLocal).forEach(username => {
-    Object.keys(pendingLocal[username]).forEach(split => {
-      const ms = pendingLocal[username][split];
-      promises.push(set(ref(db, `races/${meetKey}/${raceKey}/splits/${username}/${split}`), ms));
-    });
-  });
-
+  if (!isOnline || !Object.keys(pendingLocal).length) return;
   try {
-    await Promise.all(promises);
+    await Promise.all(
+      Object.entries(pendingLocal).flatMap(([u, splits]) =>
+        Object.entries(splits).map(([s, ms]) =>
+          set(ref(db, `races/${selectedMeetKey}/${selectedRaceKey}/splits/${u}/${s}`), ms)))
+    );
     pendingLocal = {};
-    const key = `splits_${meetKey}_${raceKey}`;
-    localStorage.removeItem(key);
-    document.getElementById('sync-banner').style.display = 'none';
-    document.getElementById('save-btn').classList.remove('sync-pending');
+    localStorage.removeItem(`splits_${selectedMeetKey}_${selectedRaceKey}`);
+    if (isOnline) $('offline-bar').style.display = 'none';
     showToast('Offline splits synced!', 'success');
-  } catch(e) {
-    showToast('Sync failed, will retry', 'error');
-  }
+  } catch(e) {}
 }
 
-// ── Undo ──────────────────────────────────────────────────────────────────────
+// ── UNDO ──────────────────────────────────────────────────────────────────────
 window.undoLastTap = function() {
-  if (lastTapStack.length === 0) return;
-  const { username, split, prevValue } = lastTapStack.pop();
-
-  if (!recordedSplits[username]) recordedSplits[username] = {};
-  if (prevValue === null) {
-    delete recordedSplits[username][split];
-  } else {
-    recordedSplits[username][split] = prevValue;
-  }
-
-  if (isOnline) {
-    const meetKey = document.getElementById('meet-select').value;
-    const raceKey = document.getElementById('race-select').value;
-    if (prevValue === null) {
-      set(ref(db, `races/${meetKey}/${raceKey}/splits/${username}/${split}`), null).catch(() => {});
-    } else {
-      set(ref(db, `races/${meetKey}/${raceKey}/splits/${username}/${split}`), prevValue).catch(() => {});
-    }
-  }
-
-  document.getElementById('undo-btn').disabled = lastTapStack.length === 0;
+  if (!lastTapStack.length) return;
+  const {username, split, prev} = lastTapStack.pop();
+  if (prev === null) { delete recordedSplits[username]?.[split]; }
+  else               { recordedSplits[username][split] = prev; }
+  if (isOnline) set(ref(db, `races/${selectedMeetKey}/${selectedRaceKey}/splits/${username}/${split}`), prev||null).catch(()=>{});
+  $('undo-btn').disabled = !lastTapStack.length;
   renderRunnerList();
-  showToast('Last tap undone', 'warning');
+  showToast('Undone', 'warning');
 };
 
-// ── Edit modal ────────────────────────────────────────────────────────────────
-let editingUsername = null;
-let editingSplit    = null;
-
-window.openEditModal = function(username, split, currentMs) {
-  editingUsername = username;
-  editingSplit    = split;
-  const splitLabel = { mile1: 'Mile 1', mile2: 'Mile 2', finish: 'Finish' }[split];
-  document.getElementById('edit-modal-sub').textContent =
-    `Editing ${splitLabel} for ${getRunnerName(username)}`;
-  document.getElementById('edit-time-input').value = currentMs ? msToDisplay(currentMs, 2) : '';
-  document.getElementById('edit-modal').classList.add('open');
+// ── EDIT MODAL ────────────────────────────────────────────────────────────────
+window.openEditModal = function(u, split, ms) {
+  editingUser = u; editingSplit = split;
+  const label = {mile1:'Mile 1',mile2:'Mile 2',finish:'Finish'}[split];
+  $('edit-modal-sub').textContent = `Editing ${label} for ${getRunnerName(u)}`;
+  $('edit-time-input').value = ms ? msToDisplay(ms,2) : '';
+  $('edit-modal').classList.add('open');
 };
-
-window.closeEditModal = function() {
-  document.getElementById('edit-modal').classList.remove('open');
-  editingUsername = null;
-  editingSplit    = null;
-};
-
+window.closeEditModal = function() { $('edit-modal').classList.remove('open'); };
 window.saveEditedTime = function() {
-  const raw = document.getElementById('edit-time-input').value.trim();
-  const ms  = displayToMs(raw);
-  if (!ms) { showToast('Invalid time format', 'error'); return; }
-
-  if (!recordedSplits[editingUsername]) recordedSplits[editingUsername] = {};
-  recordedSplits[editingUsername][editingSplit] = ms;
-
-  if (isOnline) {
-    const meetKey = document.getElementById('meet-select').value;
-    const raceKey = document.getElementById('race-select').value;
-    set(ref(db, `races/${meetKey}/${raceKey}/splits/${editingUsername}/${editingSplit}`), ms).catch(() => {});
-  } else {
-    saveLocalSplit(editingUsername, editingSplit, ms);
-  }
-
-  closeEditModal();
-  renderRunnerList();
-  showToast('Time updated', 'success');
+  const ms = displayToMs($('edit-time-input').value.trim());
+  if (!ms) { showToast('Invalid format — use M:SS or M:SS.t', 'error'); return; }
+  if (!recordedSplits[editingUser]) recordedSplits[editingUser] = {};
+  recordedSplits[editingUser][editingSplit] = ms;
+  writeSplit(editingUser, editingSplit, ms);
+  closeEditModal(); renderRunnerList(); showToast('Time updated', 'success');
 };
-
 window.clearSplitTime = function() {
-  if (!confirm('Remove this split time?')) return;
-  delete recordedSplits[editingUsername]?.[editingSplit];
-
-  if (isOnline) {
-    const meetKey = document.getElementById('meet-select').value;
-    const raceKey = document.getElementById('race-select').value;
-    set(ref(db, `races/${meetKey}/${raceKey}/splits/${editingUsername}/${editingSplit}`), null).catch(() => {});
-  }
-
-  closeEditModal();
-  renderRunnerList();
-  showToast('Split cleared', 'warning');
+  if (!confirm('Remove this split?')) return;
+  delete recordedSplits[editingUser]?.[editingSplit];
+  if (isOnline) set(ref(db, `races/${selectedMeetKey}/${selectedRaceKey}/splits/${editingUser}/${editingSplit}`), null).catch(()=>{});
+  closeEditModal(); renderRunnerList(); showToast('Split cleared', 'warning');
 };
 
-// ── Render runner list ────────────────────────────────────────────────────────
+// ── RENDER RUNNERS ────────────────────────────────────────────────────────────
 function renderRunnerList() {
-  const list = document.getElementById('runner-list');
-  if (runnersData.length === 0) {
-    list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:40px 0;">No runners loaded for this race.</div>';
-    return;
+  const list = $('runner-list');
+  if (!runnersData.length) {
+    list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:40px 0;">No runners loaded for this race.</div>'; return;
   }
-
-  // Sort: unrecorded current split first, then recorded
-  const splitLabel = { mile1: 'Mile 1', mile2: 'Mile 2', finish: 'Finish' }[currentSplit];
-
-  // Separate into pending (no current split recorded) and done
   const pending = runnersData.filter(r => !recordedSplits[r.username]?.[currentSplit]);
   const done    = runnersData.filter(r =>  recordedSplits[r.username]?.[currentSplit]);
-
+  const label   = {mile1:'Mile 1',mile2:'Mile 2',finish:'Finish'}[currentSplit];
   let html = '';
-  if (pending.length > 0) {
-    html += `<div class="section-divider">Waiting — ${splitLabel}</div>`;
-    html += pending.map(r => renderRunnerRow(r)).join('');
-  }
-  if (done.length > 0) {
-    html += `<div class="section-divider" style="margin-top:16px;">Recorded — ${splitLabel}</div>`;
-    html += done.map(r => renderRunnerRow(r)).join('');
-  }
-
+  if (pending.length) { html += `<div class="section-divider">Waiting — ${label} (${pending.length})</div>`; html += pending.map(r=>runnerRowHTML(r)).join(''); }
+  if (done.length)    { html += `<div class="section-divider" style="margin-top:16px;">Recorded — ${label} (${done.length})</div>`; html += done.map(r=>runnerRowHTML(r)).join(''); }
   list.innerHTML = html;
 }
 
-function renderRunnerRow(runner) {
-  const { username, name, pr } = runner;
-  const splits = recordedSplits[username] || {};
-  const hasCurrent = !!splits[currentSplit];
-  const isMyRecording = splits.coach === coachName;
-
-  const m1  = splits.mile1  ? `<div class="split-chip ${isMyRecording ? 'mine' : ''}" onclick="openEditModal('${username}','mile1',${splits.mile1})">M1: ${msToDisplay(splits.mile1)}</div>` : '';
-  const m2  = splits.mile2  ? `<div class="split-chip ${isMyRecording ? 'mine' : ''}" onclick="openEditModal('${username}','mile2',${splits.mile2})">M2: ${msToDisplay(splits.mile2)}</div>` : '';
-  const fin = splits.finish ? `<div class="split-chip ${isMyRecording ? 'mine' : ''}" onclick="openEditModal('${username}','finish',${splits.finish})">Fin: ${msToDisplay(splits.finish)}</div>` : '';
-
-  const anyRecorded = m1 || m2 || fin;
-  const rowClass = hasCurrent ? 'runner-row recorded' : 'runner-row';
-
+function runnerRowHTML(runner) {
+  const {username, name, pr} = runner;
+  const s = recordedSplits[username] || {};
+  const isMine = s.coach === coachName;
+  const chip = (split, label) => s[split]
+    ? `<div class="split-chip ${isMine?'mine':'other'}" onclick="openEditModal('${username}','${split}',${s[split]})">${label}: ${msToDisplay(s[split])}</div>`
+    : '';
+  const chips = chip('mile1','M1') + chip('mile2','M2') + chip('finish','Fin');
+  const recorded = !!s[currentSplit];
   return `
-    <div class="${rowClass}" id="runner-row-${username}">
+    <div class="runner-row ${recorded?'recorded':''}" id="rr-${username}">
       <div class="runner-tap-area" onclick="tapRunner('${username}')">
         <div class="runner-name">${name}</div>
-        ${pr ? `<div class="runner-pr">PR: ${pr}</div>` : ''}
+        ${pr ? `<div class="runner-pr-label">PR: ${pr}</div>` : ''}
       </div>
       <div class="runner-time-block">
-        <div class="split-chips">
-          ${m1}${m2}${fin}
-          ${!anyRecorded ? '<div class="split-chip">—</div>' : ''}
-        </div>
+        <div class="split-chips">${chips || '<div class="split-chip">—</div>'}</div>
       </div>
     </div>`;
 }
 
-// ── Save to Google Sheets modal ───────────────────────────────────────────────
+// ── EXPORT / SAVE ─────────────────────────────────────────────────────────────
 window.openSaveModal = function() {
-  if (Object.keys(pendingLocal).length > 0 && isOnline) {
-    syncLocalToFirebase().then(() => buildSaveSummary());
-  } else {
-    buildSaveSummary();
-  }
-  document.getElementById('save-modal').classList.add('open');
-};
+  if (isOnline && Object.keys(pendingLocal).length) syncLocalToFirebase();
+  const total    = runnersData.length;
+  const withAny  = runnersData.filter(r=>{ const s=recordedSplits[r.username]||{}; return s.mile1||s.mile2||s.finish; }).length;
+  const complete = runnersData.filter(r=>{ const s=recordedSplits[r.username]||{}; return s.mile1&&s.mile2&&s.finish; }).length;
+  $('save-summary').innerHTML =
+    `${total} runners &nbsp;|&nbsp; ${withAny} with splits &nbsp;|&nbsp; ${complete} complete<br>` +
+    `<span style="font-size:11px;">Copy the JSON below and paste into Streamlit → Data Entry → Import from Timer</span>`;
 
-function buildSaveSummary() {
-  const total   = runnersData.length;
-  const withAny = runnersData.filter(r => {
-    const s = recordedSplits[r.username] || {};
-    return s.mile1 || s.mile2 || s.finish;
-  }).length;
-  const complete = runnersData.filter(r => {
-    const s = recordedSplits[r.username] || {};
-    return s.mile1 && s.mile2 && s.finish;
-  }).length;
-
-  document.getElementById('save-summary').innerHTML =
-    `${total} runners in race<br>` +
-    `${withAny} have at least one split recorded<br>` +
-    `${complete} have all three splits (Mile 1, Mile 2, Finish)<br>` +
-    `${total - withAny} have no data recorded`;
-}
-
-window.closeSaveModal = function() {
-  document.getElementById('save-modal').classList.remove('open');
-};
-
-// ── Write splits to Google Sheets ─────────────────────────────────────────────
-// Uses the Sheets API v4 batchUpdate via fetch with an API key.
-// The Sheet ID is entered by the coach. No OAuth needed for writes if
-// the sheet is shared with the service account — but since we can't use
-// service accounts from pure JS, we use the approach of writing via
-// a public-writable sheet with a Sheets API key.
-//
-// IMPORTANT NOTE: Pure browser JS cannot authenticate with Google Sheets
-// the same way Python/Streamlit does (which uses a service account).
-// The practical solution: after recording, coaches use the "Export JSON"
-// button which copies all times to clipboard, then paste into Streamlit's
-// Data Entry tab using the new "Import from Timer" option.
-// Full Sheets API write support requires a backend endpoint.
-window.saveToGoogleSheets = async function() {
-  const sheetId = document.getElementById('sheet-id-input').value.trim();
-  if (!sheetId) { showToast('Please enter your Sheet ID', 'error'); return; }
-  localStorage.setItem('mcxc_sheet_id', sheetId);
-
-  // Build the export data
-  const exportData = {
-    meet: selectedMeet,
-    race: selectedRace,
-    recordedAt: new Date().toISOString(),
-    splits: {}
+  const exportObj = {
+    meet: selectedMeet, race: selectedRace,
+    exportedAt: new Date().toISOString(),
+    splits: Object.fromEntries(runnersData.map(r => [r.username, {
+      name:   r.name,
+      mile1:  msToMinSec(recordedSplits[r.username]?.mile1  || 0),
+      mile2:  msToMinSec(recordedSplits[r.username]?.mile2  || 0),
+      finish: msToMinSec(recordedSplits[r.username]?.finish || 0),
+    }]))
   };
-
-  runnersData.forEach(runner => {
-    const s = recordedSplits[runner.username] || {};
-    exportData.splits[runner.username] = {
-      name:   runner.name,
-      mile1:  s.mile1  ? msToMinSec(s.mile1)  : '',
-      mile2:  s.mile2  ? msToMinSec(s.mile2)  : '',
-      finish: s.finish ? msToMinSec(s.finish) : '',
-    };
-  });
-
-  // Copy to clipboard as JSON — coach pastes into Streamlit Import panel
-  const jsonStr = JSON.stringify(exportData, null, 2);
-  try {
-    await navigator.clipboard.writeText(jsonStr);
-    closeSaveModal();
-    showToast('Times copied to clipboard — paste in Dashboard', 'success');
-  } catch(e) {
-    // Fallback: show in a textarea
-    const ta = document.createElement('textarea');
-    ta.value = jsonStr;
-    ta.style.cssText = 'position:fixed;top:10px;left:10px;right:10px;height:200px;z-index:9999;font-size:10px;';
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    setTimeout(() => document.body.removeChild(ta), 3000);
-    closeSaveModal();
-    showToast('Times copied — paste in Dashboard', 'success');
-  }
-
-  // Also write to Firebase for persistence
-  if (isOnline) {
-    const meetKey = document.getElementById('meet-select').value;
-    const raceKey = document.getElementById('race-select').value;
-    set(ref(db, `races/${meetKey}/${raceKey}/exportedAt`), Date.now()).catch(() => {});
-  }
+  $('export-json').value = JSON.stringify(exportObj, null, 2);
+  $('save-modal').classList.add('open');
 };
-
-// ── Populate meets from Firebase when Streamlit writes them ──────────────────
-// This is called by Streamlit's app.py after a meet is created.
-// It writes to Firebase: meets/{meetKey} = {name, races: {raceKey: {name, runners: [...]}}}
-// The timer.html reads from there on load.
-
-// ── Initialize ────────────────────────────────────────────────────────────────
-loadMeets();
-updateConnectionUI(navigator.onLine);
+window.closeSaveModal = function() { $('save-modal').classList.remove('open'); };
+window.copyExport = async function() {
+  try {
+    await navigator.clipboard.writeText($('export-json').value);
+    showToast('Copied to clipboard!', 'success');
+  } catch(e) { $('export-json').select(); document.execCommand('copy'); showToast('Copied!', 'success'); }
+};
 
 </script>
 </body>
