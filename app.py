@@ -674,9 +674,12 @@ DEFAULT_DOCS = pd.DataFrame([
 
 DEFAULT_ANNOUNCEMENTS = pd.DataFrame(columns=["ID","Title","Message","Link","Link_Label","Posted_By","Date_Posted","Active"])
 
-vdot_data          = _fetch_vdot()          or DEFAULT_VDOT
-rest_data          = _fetch_rest()          or DEFAULT_REST
-docs_data          = _fetch_docs()          or DEFAULT_DOCS
+_vdot = _fetch_vdot()
+_rest = _fetch_rest()
+_docs = _fetch_docs()
+vdot_data          = _vdot if _vdot is not None else DEFAULT_VDOT
+rest_data          = _rest if _rest is not None else DEFAULT_REST
+docs_data          = _docs if _docs is not None else DEFAULT_DOCS
 announcements_data = _fetch_announcements()
 
 
