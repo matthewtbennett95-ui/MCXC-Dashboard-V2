@@ -642,9 +642,16 @@ window.enterTimerScreen = async function() {
   $('race-display').textContent      = selectedRace;
   showScreen('timer-screen');
 
-  // Load runners from Firebase
+  // Load runners from Firebase, deduplicated by username
   const snap = await get(ref(db, `meets/${selectedMeetKey}/races/${selectedRaceKey}/runners`));
-  runnersData = snap.exists() ? (Array.isArray(snap.val()) ? snap.val() : Object.values(snap.val())) : [];
+  const raw = snap.exists() ? (Array.isArray(snap.val()) ? snap.val() : Object.values(snap.val())) : [];
+  // Deduplicate: keep only the first entry per username
+  const seen = new Set();
+  runnersData = raw.filter(r => {
+    if (!r.username || seen.has(r.username)) return false;
+    seen.add(r.username);
+    return true;
+  });
   renderRunnerList();
 
   // Listen for live split updates (other coaches recording)
@@ -747,18 +754,16 @@ window.tapRunner = function(username) {
   recordedSplits[username][currentSplit] = elapsed;
   recordedSplits[username].coach = coachName;
 
-  // Visual flash
-  const row = document.getElementById(`rr-${username}`);
-  if (row) { row.classList.add('tap-flash'); setTimeout(()=>row.classList.remove('tap-flash'),300); }
-
   $('undo-btn').disabled = false;
-  writeSplit(username, currentSplit, elapsed);
-  // Use requestAnimationFrame so the DOM update is guaranteed to paint
-  // before the next user interaction — fixes "time only shows after tab switch"
-  requestAnimationFrame(() => {
-    renderRunnerList();
-  });
+
+  // Render immediately from local state — do NOT wait for Firebase round-trip.
+  // The UI updates instantly; Firebase write happens in background.
+  // The onValue listener will confirm but the screen is already correct.
+  renderRunnerList();
   showToast(`${getRunnerName(username)} — ${msToDisplay(elapsed)}`, 'success');
+
+  // Fire-and-forget Firebase write after UI is already updated
+  writeSplit(username, currentSplit, elapsed);
 };
 
 function getRunnerName(u) { return runnersData.find(r=>r.username===u)?.name || u; }
