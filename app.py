@@ -2933,12 +2933,17 @@ def _manage_timer_sync():
                         race_rows = meet_rows[meet_rows["Race_Name"] == race_name]
                         dist = race_rows["Distance"].iloc[0] if not race_rows.empty else "5K"
                         runner_list = []
+                        seen_unames = set()
                         for _, r in race_rows.iterrows():
-                            match = roster_data[roster_data["Username"] == r["Username"]]
+                            uname = r["Username"]
+                            if not uname or uname in seen_unames:
+                                continue
+                            seen_unames.add(uname)
+                            match = roster_data[roster_data["Username"] == uname]
                             rname = (f"{match.iloc[0]['First_Name']} {match.iloc[0]['Last_Name']}"
-                                     if not match.empty else r["Username"])
-                            pr_time, _ = _get_athlete_pr(r["Username"], races_data, season=CURRENT_SEASON)
-                            runner_list.append({"username": r["Username"], "name": rname, "pr": pr_time or ""})
+                                     if not match.empty else uname)
+                            pr_time, _ = _get_athlete_pr(uname, races_data, season=CURRENT_SEASON)
+                            runner_list.append({"username": uname, "name": rname, "pr": pr_time or ""})
                         firebase_races.append({"name": race_name, "dist": dist, "runners": runner_list})
 
                     ok = _push_meet_to_firebase(meet_name, meet_date, firebase_races)
