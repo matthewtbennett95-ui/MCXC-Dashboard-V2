@@ -387,6 +387,36 @@ let pendingLocal  = {};   // offline buffer
 let editingUser   = null;
 let editingSplit  = null;
 
+// --- WAKE LOCK API ---
+let wakeLock = null;
+
+async function requestWakeLock() {
+  if ('wakeLock' in navigator) {
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      console.log('Wake Lock active: Screen will not turn off');
+    } catch (err) {
+      console.error('Wake Lock error:', err.message);
+    }
+  }
+}
+
+function releaseWakeLock() {
+  if (wakeLock !== null) {
+    wakeLock.release().then(() => {
+      wakeLock = null;
+      console.log('Wake Lock released: Screen can turn off naturally');
+    });
+  }
+}
+
+// Re-acquire the wake lock if the coach minimizes the app and comes back
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible' && raceStartedAt) {
+    await requestWakeLock();
+  }
+});
+  
 // ── Utilities ────────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 
@@ -735,6 +765,7 @@ window.handleStartStop = function() {
   if (raceStartedAt) {
     if (!confirm('Stop the clock? This cannot be undone.')) return;
     clearInterval(clockInterval); clockInterval = null;
+    releaseWakeLock();
     $('start-btn').textContent = 'DONE';
     $('start-btn').className   = 'start-btn waiting';
     $('clock').className       = 'clock-display stopped';
@@ -832,6 +863,7 @@ function scheduleHardStop() {
 function startClock() {
   if (clockInterval) return;
   $('clock').className = 'clock-display running';
+  requestWakeLock();
   clockInterval = setInterval(() => { $('clock').textContent = msToDisplay(elapsedMs(), 2); }, 50);
   scheduleHardStop();    // absolute ceiling: 2 hours
   scheduleAutoStop();    // rolling: 40 min after last split (or race start if no splits)
@@ -865,7 +897,9 @@ window.resetRace = async function() {
       clearInterval(clockInterval);
       clockInterval = null;
     }
-
+    
+    releaseWakeLock();
+    
     // 5. Reset UI elements back to starting state
     $('clock').textContent = '00:00.0';
     $('clock').className = 'clock-display';
