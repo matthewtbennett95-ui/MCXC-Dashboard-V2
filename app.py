@@ -1172,7 +1172,7 @@ def show_rankings_tab():
     target_gender = "Male" if r_gender == "Men's" else "Female"
     merged = pd.merge(races_data, roster_data[["Username", "First_Name", "Last_Name", "Gender", "Active_Clean"]], on="Username", how="inner")
     merged = merged[merged["Active_Clean"].isin(ACTIVE_FLAGS) & merged["Active"].isin(ACTIVE_FLAGS) &
-                    (merged["Gender"].str.title() == target_gender) & (merged["Distance"].str.upper() == r_dist.upper()) & (merged["Season"] == r_season)]
+                    (merged["Gender"].astype(str).str.title() == target_gender) & (merged["Distance"].astype(str).str.upper() == r_dist.upper()) & (merged["Season"] == r_season)]
 
     if merged.empty: return st.info("No active race data found for this category and season.")
 
