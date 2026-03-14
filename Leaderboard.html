@@ -349,62 +349,50 @@ function renderGrid() {
   if (!leaderboardData) return;
 
   const gNode = leaderboardData[currentGender]?.[currentDist];
-  if (!gNode || !gNode.grid || !gNode.meets || gNode.meets.length === 0) {
+  if (!gNode || !gNode.athletes || !gNode.meets || gNode.meets.length === 0) {
     area.innerHTML = '<div class="state-msg"><span class="icon">📋</span>No results yet for this category.</div>';
     return;
   }
 
-  const meets   = gNode.meets;       // ordered meet columns
-  const grid    = gNode.grid;        // {athlete: {meet_col: time}}
-  const prMap   = gNode.pr  || {};   // {athlete: pr_time}
-  const order   = gNode.order || Object.keys(grid); // sorted athlete list
+  const meets    = gNode.meets;      // ["County (09/13)", "PRville (09/27)", ...]
+  const athletes = gNode.athletes;   // {safe_username: {name, times:{idx:time}, pr, wa}}
+  const order    = gNode.order || Object.keys(athletes);
 
-  // Find best time per meet column for highlighting
-  const bestPerMeet = {};
-  meets.forEach(m => {
+  // Find best time per meet index for highlighting
+  const bestPerIdx = {};
+  meets.forEach((_, idx) => {
     let best = Infinity;
-    order.forEach(athlete => {
-      const t = grid[athlete]?.[m];
-      if (t) {
-        const s = parseTime(t);
-        if (s > 0 && s < best) best = s;
-      }
+    order.forEach(key => {
+      const t = athletes[key]?.times?.[String(idx)];
+      if (t) { const s = parseTime(t); if (s > 0 && s < best) best = s; }
     });
-    bestPerMeet[m] = best;
+    bestPerIdx[idx] = best;
   });
 
   // Build table
-  let html = '<table>';
-
-  // Header row
-  html += '<thead><tr><th>Athlete</th>';
+  let html = '<table><thead><tr><th>Athlete</th>';
   meets.forEach(m => {
-    // Shorten meet label — just the name part before " ("
     const short = m.split(' (')[0];
     const date  = m.match(/\(([^)]+)\)/)?.[1] || '';
     html += `<th>${short}<br><span style="font-weight:400;opacity:0.7;">${date}</span></th>`;
   });
-  html += '<th>PR</th></tr></thead>';
+  html += '<th>PR</th></tr></thead><tbody>';
 
-  // Athlete rows
-  html += '<tbody>';
-  order.forEach((athlete, idx) => {
-    html += `<tr>`;
-    html += `<td><span class="rank-num">${idx + 1}</span> ${athlete}</td>`;
-
-    meets.forEach(m => {
-      const t = grid[athlete]?.[m] || '';
-      const s = t ? parseTime(t) : 0;
-      const isBest = s > 0 && Math.abs(s - bestPerMeet[m]) < 0.5;
+  order.forEach((key, rank) => {
+    const a    = athletes[key];
+    const name = a.name || key;
+    const pr   = a.pr   || '—';
+    html += `<tr><td><span class="rank-num">${rank + 1}</span> ${name}</td>`;
+    meets.forEach((_, idx) => {
+      const t      = a.times?.[String(idx)] || '';
+      const s      = t ? parseTime(t) : 0;
+      const isBest = s > 0 && Math.abs(s - bestPerIdx[idx]) < 0.5;
       html += `<td class="${isBest ? 'best-in-col' : ''}">${t || '—'}</td>`;
     });
-
-    const pr = prMap[athlete] || '—';
-    html += `<td class="pr-col">${pr}</td>`;
-    html += '</tr>';
+    html += `<td class="pr-col">${pr}</td></tr>`;
   });
-  html += '</tbody></table>';
 
+  html += '</tbody></table>';
   area.innerHTML = html;
 }
 
