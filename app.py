@@ -113,48 +113,58 @@ def _push_leaderboard_to_firebase(races_df, roster_df):
                                    ddf["Date_Obj"].dt.strftime("%m/%d").fillna("") + ")")
                 ordered_meets = list(dict.fromkeys(ddf["Meet_Col"].tolist()))
 
-                # Build per-athlete row: {meet_col: time_str}
-                grid = {}
-                pr_map = {}
-                wa_map = {}
+                # Build per-athlete data keyed by username (safe Firebase key).
+                # Display name stored as a field inside each athlete object
+                # so the period in "Kamran A." never appears as a Firebase key.
+                import re as _re
+                athletes = {}
                 for username, adf in ddf.groupby("Username"):
                     first = adf.iloc[0]["First_Name"]
                     last  = adf.iloc[0]["Last_Name"]
-                    display_name = f"{first} {last[0]}."   # "Kamran A."
+                    display_name = f"{first} {last[0]}"  # "Kamran A" — no period
 
-                    row = {}
+                    times = {}
                     for _, r in adf.iterrows():
                         t = str(r["Total_Time"]).strip()
                         if t and t not in ("", "nan", "None"):
-                            row[r["Meet_Col"]] = t
-
-                    grid[display_name] = row
+                            # Meet col may contain spaces/parens — safe as a value
+                            # Use a simple index key instead for Firebase
+                            meet_idx = str(ordered_meets.index(r["Meet_Col"]))
+                            times[meet_idx] = t
 
                     # PR
-                    valid = adf[(adf["Time_Sec"] > 0)]
-                    if not valid.empty:
-                        pr_map[display_name] = seconds_to_time(valid["Time_Sec"].min())
+                    valid = adf[adf["Time_Sec"] > 0]
+                    pr    = seconds_to_time(valid["Time_Sec"].min()) if not valid.empty else ""
 
                     # Weighted avg
                     wa_valid = adf[(adf["Time_Sec"] > 0) & (adf["Weight_N"] > 0)]
                     if not wa_valid.empty:
                         tw  = wa_valid["Weight_N"].sum()
                         avg = (wa_valid["Time_Sec"] * wa_valid["Weight_N"]).sum() / tw
-                        wa_map[display_name] = seconds_to_time(avg)
+                        wa  = seconds_to_time(avg)
+                    else:
+                        wa = ""
 
-                # Sort athletes by weighted avg (fastest first) for display order
-                sorted_athletes = sorted(
-                    grid.keys(),
-                    key=lambda n: time_to_seconds(wa_map.get(n, "99:99"))
+                    # Safe Firebase key: replace any invalid chars in username
+                    safe_key = str(username).replace('.','_').replace('#','_').replace('$','_').replace('[','_').replace(']','_').replace('/','_')
+                    athletes[safe_key] = {
+                        "name":  display_name,
+                        "times": times,
+                        "pr":    pr,
+                        "wa":    wa,
+                    }
+
+                # Sort by weighted avg (fastest first)
+                sorted_keys = sorted(
+                    athletes.keys(),
+                    key=lambda k: time_to_seconds(athletes[k].get("wa","99:99"))
                 )
 
                 dist_key = dist.replace(" ", "_")
                 gender_node[dist_key] = {
                     "meets":   ordered_meets,
-                    "grid":    grid,
-                    "pr":      pr_map,
-                    "wa":      wa_map,
-                    "order":   sorted_athletes,
+                    "athletes": athletes,
+                    "order":    sorted_keys,
                 }
 
             if gender_node:
