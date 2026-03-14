@@ -52,6 +52,122 @@ def _push_meet_to_firebase(meet_name, meet_date, races_list):
     except Exception:
         return False  # Silently fail — timer still works with manual entry
 
+def _push_leaderboard_to_firebase(races_df, roster_df):
+    """
+    Builds current-season leaderboard + master grid data and pushes it to
+    Firebase under the 'leaderboard' node so leaderboard.html can display it.
+
+    Called automatically after every race result save. Runs silently —
+    a failure here never blocks the main save operation.
+
+    Data structure in Firebase:
+      leaderboard/
+        updatedAt: "2026-03-15 18:42"
+        season: "2025"
+        Boys/
+          5K/
+            grid: { athlete: {meet_key: time, ...}, ... }
+            meets: ["County (09/13)", "PRville (09/27)", ...]
+          2Mile/ ...
+        Girls/ ...
+    """
+    try:
+        db_url = st.secrets.get("firebase_db_url",
+                                "https://mcxc-timer-default-rtdb.firebaseio.com")
+
+        season  = CURRENT_SEASON
+        active  = races_df[
+            races_df["Active"].isin(ACTIVE_FLAGS) &
+            (races_df["Season"] == season)
+        ].copy()
+        if active.empty:
+            return False
+
+        active["Time_Sec"] = active["Total_Time"].apply(time_to_seconds)
+        active["Weight_N"] = pd.to_numeric(active["Weight"], errors="coerce").fillna(1.0)
+
+        # Merge in roster for name and gender
+        merged = pd.merge(
+            active,
+            roster_df[["Username","First_Name","Last_Name","Gender","Active_Clean"]],
+            on="Username", how="inner"
+        )
+        merged = merged[merged["Active_Clean"].isin(ACTIVE_FLAGS)]
+
+        payload = {"updatedAt": pd.Timestamp.now(tz="America/New_York").strftime("%Y-%m-%d %H:%M"),
+                   "season": season}
+
+        for gender_label, gender_val in [("Boys","Male"), ("Girls","Female")]:
+            gdf = merged[merged["Gender"].str.title() == gender_val]
+            gender_node = {}
+
+            for dist in ["5K", "2 Mile"]:
+                ddf = gdf[gdf["Distance"].str.upper() == dist.upper()].copy()
+                if ddf.empty:
+                    continue
+
+                # Build sorted meet columns (chronological)
+                ddf["Date_Obj"] = pd.to_datetime(ddf["Date"], errors="coerce")
+                ddf = ddf.sort_values("Date_Obj")
+                ddf["Meet_Col"] = (ddf["Meet_Name"] + " (" +
+                                   ddf["Date_Obj"].dt.strftime("%m/%d").fillna("") + ")")
+                ordered_meets = list(dict.fromkeys(ddf["Meet_Col"].tolist()))
+
+                # Build per-athlete row: {meet_col: time_str}
+                grid = {}
+                pr_map = {}
+                wa_map = {}
+                for username, adf in ddf.groupby("Username"):
+                    first = adf.iloc[0]["First_Name"]
+                    last  = adf.iloc[0]["Last_Name"]
+                    display_name = f"{first} {last[0]}."   # "Kamran A."
+
+                    row = {}
+                    for _, r in adf.iterrows():
+                        t = str(r["Total_Time"]).strip()
+                        if t and t not in ("", "nan", "None"):
+                            row[r["Meet_Col"]] = t
+
+                    grid[display_name] = row
+
+                    # PR
+                    valid = adf[(adf["Time_Sec"] > 0)]
+                    if not valid.empty:
+                        pr_map[display_name] = seconds_to_time(valid["Time_Sec"].min())
+
+                    # Weighted avg
+                    wa_valid = adf[(adf["Time_Sec"] > 0) & (adf["Weight_N"] > 0)]
+                    if not wa_valid.empty:
+                        tw  = wa_valid["Weight_N"].sum()
+                        avg = (wa_valid["Time_Sec"] * wa_valid["Weight_N"]).sum() / tw
+                        wa_map[display_name] = seconds_to_time(avg)
+
+                # Sort athletes by weighted avg (fastest first) for display order
+                sorted_athletes = sorted(
+                    grid.keys(),
+                    key=lambda n: time_to_seconds(wa_map.get(n, "99:99"))
+                )
+
+                dist_key = dist.replace(" ", "_")
+                gender_node[dist_key] = {
+                    "meets":   ordered_meets,
+                    "grid":    grid,
+                    "pr":      pr_map,
+                    "wa":      wa_map,
+                    "order":   sorted_athletes,
+                }
+
+            if gender_node:
+                payload[gender_label] = gender_node
+
+        url  = f"{db_url}/leaderboard.json"
+        resp = requests.put(url, json=payload, timeout=8)
+        return resp.status_code == 200
+    except Exception:
+        return False  # Never block the main save
+
+
+
 # ==========================================
 # 1. APP SETUP & VISUAL THEMES
 # ==========================================
@@ -2558,6 +2674,7 @@ def _de_import_from_timer():
             with st.spinner("Saving to database..."):
                 conn.update(worksheet="Races", data=races_data)
             invalidate_races()
+            _push_leaderboard_to_firebase(races_data, roster_data)
 
             msg = f"Imported {updates} time(s) for the {CURRENT_SEASON} season."
             if skipped: msg += f" {skipped} skipped (existing data kept)."
@@ -2642,7 +2759,9 @@ def _de_race_results():
                 races_data.loc[mask, "Mile_2"]     = str(row["Mile 2"]).strip()    if pd.notna(row["Mile 2"])    else ""
                 races_data.loc[mask, "Total_Time"] = str(row["Total Time"]).strip() if pd.notna(row["Total Time"]) else ""
             with st.spinner("Saving..."): conn.update(worksheet="Races", data=races_data)
-            st.success("Results saved!"); invalidate_races(); st.rerun()
+            invalidate_races()
+            _push_leaderboard_to_firebase(races_data, roster_data)
+            st.success("Results saved — leaderboard updated!"); st.rerun()
     with col_del:
         if st.button("🗑️ Delete Entire Race", width='stretch'):
             keep = races_data[~((races_data["Meet_Name"] == sel_meet) &
@@ -3326,6 +3445,22 @@ def _manage_timer_sync():
         "use this only to push **existing** meets that were created before this "
         "feature was added."
     )
+
+    # ── Manual leaderboard publish ────────────────────────────────────────────
+    st.markdown("### Public Leaderboard")
+    st.markdown(
+        "The leaderboard updates automatically whenever you save race results. "
+        "Use this button if you need to force a refresh — for example after "
+        "editing times directly in the Google Sheet."
+    )
+    if st.button("Publish Leaderboard Now", key="manual_leaderboard_btn"):
+        with st.spinner("Publishing..."):
+            ok = _push_leaderboard_to_firebase(races_data, roster_data)
+        if ok:
+            st.success("Leaderboard published to Firebase. Parents can view it now.")
+        else:
+            st.error("Publish failed — check your Firebase secrets in Streamlit Cloud.")
+    st.markdown("---")
 
     # ── Show what's currently in Firebase ────────────────────────────────────
     db_url  = st.secrets.get("firebase_db_url",  "https://mcxc-timer-default-rtdb.firebaseio.com")
