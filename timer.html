@@ -484,7 +484,12 @@ async function verifyPin() {
 }
 
 function proceedToSetup() {
-  $('coach-welcome').textContent = `Welcome, ${coachName}`;
+  // Display as 'Coach LASTNAME' — take last word of stored name
+  const nameParts = coachName.trim().split(/\s+/);
+  const displayName = nameParts.length > 1
+    ? `Coach ${nameParts[nameParts.length - 1].toUpperCase()}`
+    : `Coach ${coachName.toUpperCase()}`;
+  $('coach-welcome').textContent = displayName;
   showScreen('setup-screen');
   loadMeets();
 }
@@ -644,7 +649,11 @@ window.enterTimerScreen = async function() {
   if (notice) notice.style.display = 'block';
 
   $('header-meet-title').textContent = `${selectedMeet} — ${selectedRace}`;
-  $('coach-display').textContent     = coachName;
+  const nameParts2 = coachName.trim().split(/\s+/);
+  const shortName = nameParts2.length > 1
+    ? `Coach ${nameParts2[nameParts2.length - 1]}`
+    : `Coach ${coachName}`;
+  $('coach-display').textContent = shortName;
   $('race-display').textContent      = selectedRace;
   showScreen('timer-screen');
 
