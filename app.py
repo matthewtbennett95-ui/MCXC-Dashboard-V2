@@ -539,13 +539,76 @@ def _build_workout_sheet_html(w_type, w_dist, w_date, rep_count, roster_df, race
     return body, force_landscape
 
 # ==========================================
-# 3. DATABASE CONNECTION & CLEANUP
+# 3. DATABASE CONNECTION & CACHING
 # ==========================================
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-roster_data = conn.read(worksheet="Roster", ttl=600).dropna(how="all")
-races_data = conn.read(worksheet="Races", ttl=600).dropna(how="all")
-workouts_data = conn.read(worksheet="Workouts", ttl=600).dropna(how="all")
+# Each sheet has its own @st.cache_data function so we can invalidate only the
+# sheet that actually changed instead of clearing all 7 sheets at once.
+#
+# TTL strategy (balancing freshness vs. API quota):
+#   Roster / VDOT / Rest / Docs  — 3600s (1 hr): rarely changes mid-session
+#   Races / Workouts             —  900s (15 min): coach enters after events
+#   Announcements                —  120s (2 min):  athletes need to see posts quickly
+#
+# After any conn.update() call, use the matching invalidate_*() helper below
+# instead of st.cache_data.clear() so only one sheet re-reads on the next run.
+
+@st.cache_data(ttl=3600)
+def _fetch_roster():
+    return conn.read(worksheet="Roster", ttl=0).dropna(how="all")
+
+@st.cache_data(ttl=900)
+def _fetch_races():
+    return conn.read(worksheet="Races", ttl=0).dropna(how="all")
+
+@st.cache_data(ttl=900)
+def _fetch_workouts():
+    return conn.read(worksheet="Workouts", ttl=0).dropna(how="all")
+
+@st.cache_data(ttl=3600)
+def _fetch_vdot():
+    try:
+        df = conn.read(worksheet="VDOT", ttl=0).dropna(how="all")
+        return df if "5K_Time" in df.columns else None
+    except: return None
+
+@st.cache_data(ttl=3600)
+def _fetch_rest():
+    try:
+        df = conn.read(worksheet="Rest", ttl=0).dropna(how="all")
+        return df if "Workout" in df.columns else None
+    except: return None
+
+@st.cache_data(ttl=3600)
+def _fetch_docs():
+    try:
+        df = conn.read(worksheet="Documents", ttl=0).dropna(how="all")
+        return df if "Title" in df.columns else None
+    except: return None
+
+@st.cache_data(ttl=120)
+def _fetch_announcements():
+    try:
+        df = conn.read(worksheet="Announcements", ttl=0).dropna(how="all")
+        required = ["ID","Title","Message","Link","Link_Label","Posted_By","Date_Posted","Active"]
+        for col in required:
+            if col not in df.columns: df[col] = ""
+        return df
+    except: return DEFAULT_ANNOUNCEMENTS.copy()
+
+# Targeted invalidation helpers — call these instead of st.cache_data.clear()
+def invalidate_roster():        _fetch_roster.clear()
+def invalidate_races():         _fetch_races.clear()
+def invalidate_workouts():      _fetch_workouts.clear()
+def invalidate_vdot():          _fetch_vdot.clear()
+def invalidate_rest():          _fetch_rest.clear()
+def invalidate_docs():          _fetch_docs.clear()
+def invalidate_announcements(): _fetch_announcements.clear()
+
+roster_data    = _fetch_roster()
+races_data     = _fetch_races()
+workouts_data  = _fetch_workouts()
 
 DEFAULT_VDOT = pd.DataFrame([
     {"VDOT": 66, "5K_Time": "15:41", "2_Mile_Time": "9:46", "Easy_Pace": "6:36-7:00", "Tempo_Mile": "5:28", "Tempo_400m": "1:21", "Interval_400m": "1:15", "Interval_800m": "2:30", "Interval_1000m": "3:06", "Interval_1200m": "3:42", "Interval_Mile": "5:00"},
@@ -609,34 +672,12 @@ DEFAULT_DOCS = pd.DataFrame([
     {"Title": "Meet Schedule & Location Links", "URL": ""}
 ])
 
-def _read_sheet(worksheet, default_df, required_col):
-    try:
-        df = conn.read(worksheet=worksheet, ttl=600).dropna(how="all")
-        return df if required_col in df.columns else default_df
-    except: return default_df
-
-vdot_data = _read_sheet("VDOT", DEFAULT_VDOT, "5K_Time")
-rest_data = _read_sheet("Rest", DEFAULT_REST, "Workout")
-docs_data = _read_sheet("Documents", DEFAULT_DOCS, "Title")
-
 DEFAULT_ANNOUNCEMENTS = pd.DataFrame(columns=["ID","Title","Message","Link","Link_Label","Posted_By","Date_Posted","Active"])
 
-def _load_announcements():
-    """
-    Loads the Announcements sheet. Returns an empty DataFrame with the correct
-    columns if the sheet doesn't exist yet, so the rest of the app never
-    has to guard against missing columns.
-    """
-    try:
-        df = conn.read(worksheet="Announcements", ttl=300).dropna(how="all")
-        required = ["ID","Title","Message","Link","Link_Label","Posted_By","Date_Posted","Active"]
-        for col in required:
-            if col not in df.columns: df[col] = ""
-        return df
-    except:
-        return DEFAULT_ANNOUNCEMENTS.copy()
-
-announcements_data = _load_announcements()
+vdot_data          = _fetch_vdot()          or DEFAULT_VDOT
+rest_data          = _fetch_rest()          or DEFAULT_REST
+docs_data          = _fetch_docs()          or DEFAULT_DOCS
+announcements_data = _fetch_announcements()
 
 
 # Clean up data
@@ -685,7 +726,7 @@ def save_to_sheet(worksheet, data):
     """Helper to push data to Google Sheets, stripping helper columns."""
     push = data.drop(columns=["Active_Clean"]) if "Active_Clean" in data.columns else data
     conn.update(worksheet=worksheet, data=push)
-    st.cache_data.clear()
+    invalidate_workouts()
 
 # ==========================================
 # 5. VISUAL UI COMPONENTS & CHARTS
@@ -1319,7 +1360,7 @@ def _tab_roster_management():
                     updated = pd.concat([push, new_row], ignore_index=True)
                     with st.spinner("Adding new member..."): conn.update(worksheet="Roster", data=updated)
                     st.success(f"Added {new_first} {new_last}. Username: '{gen_un}'.")
-                    st.cache_data.clear(); st.rerun()
+                    invalidate_roster(); st.rerun()
 
     elif roster_action == "Edit Member":
         st.info("Note: Usernames cannot be changed.")
@@ -1528,7 +1569,7 @@ def _printable_new_meet():
                 updated = pd.concat([races_data, pd.DataFrame(new_rows)], ignore_index=True)
                 with st.spinner("Saving meet to database..."):
                     conn.update(worksheet="Races", data=updated)
-                st.cache_data.clear()
+                invalidate_roster()
             html_body = _build_split_sheet_html(p_meet, races_data, roster_data,
                                                  races_to_print, meet_date=p_date)
             final_html = wrap_html_for_print(f"{p_meet} Split Sheet", html_body)
@@ -1754,7 +1795,7 @@ def _de_race_results():
                            "Season": calculate_season(date_val)} for u in add_runners]
                 updated = pd.concat([races_data, pd.DataFrame(new_r)], ignore_index=True)
                 with st.spinner("Adding runners..."): conn.update(worksheet="Races", data=updated)
-                st.cache_data.clear(); st.rerun()
+                invalidate_roster(); st.rerun()
 
     st.markdown(f"### {sel_race} — Enter Times")
     grid_data = []
@@ -1788,13 +1829,13 @@ def _de_race_results():
                 races_data.loc[mask, "Mile_2"]     = str(row["Mile 2"]).strip()    if pd.notna(row["Mile 2"])    else ""
                 races_data.loc[mask, "Total_Time"] = str(row["Total Time"]).strip() if pd.notna(row["Total Time"]) else ""
             with st.spinner("Saving..."): conn.update(worksheet="Races", data=races_data)
-            st.success("Results saved!"); st.cache_data.clear(); st.rerun()
+            st.success("Results saved!"); invalidate_races(); st.rerun()
     with col_del:
         if st.button("🗑️ Delete Entire Race", use_container_width=True):
             keep = races_data[~((races_data["Meet_Name"] == sel_meet) &
                                 (races_data["Race_Name"] == sel_race))]
             with st.spinner("Deleting..."): conn.update(worksheet="Races", data=keep)
-            st.success("Race deleted."); st.cache_data.clear(); st.rerun()
+            st.success("Race deleted."); invalidate_races(); st.rerun()
 
 
 def _de_edit_meet():
@@ -1850,7 +1891,7 @@ def _de_edit_meet():
         races_data.loc[mask, "Season"]    = new_season
         with st.spinner("Saving..."): conn.update(worksheet="Races", data=races_data)
         st.success(f"Meet updated to '{new_meet_name}' on {formatted_new_date}.")
-        st.cache_data.clear(); st.rerun()
+        invalidate_races(); st.rerun()
 
     st.markdown("---")
     st.markdown("### Races Within This Meet")
@@ -1876,7 +1917,7 @@ def _de_edit_meet():
                 races_data.loc[mask, "Distance"]  = new_dist
                 with st.spinner("Saving..."): conn.update(worksheet="Races", data=races_data)
                 st.success(f"Race updated to '{new_race_name}' ({new_dist}).")
-                st.cache_data.clear(); st.rerun()
+                invalidate_races(); st.rerun()
 
             st.markdown("**Remove Runners from this Race**")
             st.caption("Removing a runner deletes their entry row entirely. Their times are lost if already entered.")
@@ -1903,7 +1944,7 @@ def _de_edit_meet():
                     with st.spinner("Removing runners..."):
                         conn.update(worksheet="Races", data=keep)
                     st.success(f"Removed {len(runners_to_remove)} runner(s) from {race_name}.")
-                    st.cache_data.clear(); st.rerun()
+                    invalidate_races(); st.rerun()
 
 def _de_workouts():
     """Log new workout splits or edit/delete an existing workout session."""
@@ -2011,7 +2052,7 @@ def _de_workouts():
             if new_rows:
                 updated = pd.concat([workouts_data, pd.DataFrame(new_rows)], ignore_index=True)
                 with st.spinner("Saving..."): conn.update(worksheet="Workouts", data=updated)
-                st.session_state["workout_saved"] = True; st.cache_data.clear(); st.rerun()
+                st.session_state["workout_saved"] = True; invalidate_workouts(); st.rerun()
 
     elif workout_action == "Edit / Delete Existing":
         st.subheader("Edit / Delete Existing Workout")
@@ -2110,13 +2151,13 @@ def _de_workouts():
                              for _, row in edited_df.iterrows()]
                 updated = pd.concat([keep, pd.DataFrame(new_rows)], ignore_index=True)
                 with st.spinner("Updating..."): conn.update(worksheet="Workouts", data=updated)
-                st.success("Workout updated!"); st.cache_data.clear(); st.rerun()
+                st.success("Workout updated!"); invalidate_workouts(); st.rerun()
         with col_del:
             if st.button("🗑️ Delete This Workout", use_container_width=True):
                 keep = workouts_data[~((workouts_data["Date"] == old_date) &
                                        (workouts_data["Workout_Type"] == old_type))]
                 with st.spinner("Deleting..."): conn.update(worksheet="Workouts", data=keep)
-                st.success("Workout deleted!"); st.cache_data.clear(); st.rerun()
+                st.success("Workout deleted!"); invalidate_workouts(); st.rerun()
 
 
 # ==========================================
@@ -2162,7 +2203,7 @@ def _tab_manage():
                         races_data.loc[(races_data["Meet_Name"] == m) &
                                        (races_data["Date"] == d), "Weight"] = w
                     with st.spinner("Saving..."): conn.update(worksheet="Races", data=races_data)
-                    st.success("Weights saved!"); st.cache_data.clear(); st.rerun()
+                    st.success("Weights saved!"); invalidate_races(); st.rerun()
 
     elif action == "Archive a Meet":
         st.subheader("Archive a Meet")
@@ -2184,7 +2225,7 @@ def _tab_manage():
                     races_data.loc[(races_data["Meet_Name"] == m_name) &
                                    (races_data["Date"] == m_date), "Active"] = "FALSE"
                     with st.spinner("Archiving..."): conn.update(worksheet="Races", data=races_data)
-                    st.success(f"'{m_name}' archived."); st.cache_data.clear(); st.rerun()
+                    st.success(f"'{m_name}' archived."); invalidate_races(); st.rerun()
 
     elif action == "Pacing & Rest Tables":
         st.subheader("VDOT Paces & Rest Cycles")
@@ -2195,7 +2236,7 @@ def _tab_manage():
             if st.button("💾 Save Pace Chart", type="primary"):
                 try:
                     with st.spinner("Saving..."): conn.update(worksheet="VDOT", data=edited_vdot)
-                    st.success("Pace chart saved!"); st.cache_data.clear()
+                    st.success("Pace chart saved!"); invalidate_vdot()
                 except Exception:
                     st.error("Missing tab — add a sheet named **VDOT** in your Google Sheet.")
         with t2:
@@ -2203,7 +2244,7 @@ def _tab_manage():
             if st.button("💾 Save Rest Cycles", type="primary"):
                 try:
                     with st.spinner("Saving..."): conn.update(worksheet="Rest", data=edited_rest)
-                    st.success("Rest cycles saved!"); st.cache_data.clear()
+                    st.success("Rest cycles saved!"); invalidate_rest()
                 except Exception:
                     st.error("Missing tab — add a sheet named **Rest** in your Google Sheet.")
 
@@ -2214,7 +2255,7 @@ def _tab_manage():
         if st.button("💾 Save Documents", type="primary"):
             try:
                 with st.spinner("Saving..."): conn.update(worksheet="Documents", data=edited_docs)
-                st.success("Documents updated!"); st.cache_data.clear(); st.rerun()
+                st.success("Documents updated!"); invalidate_docs(); st.rerun()
             except Exception:
                 st.error("Missing tab — add a sheet named **Documents** in your Google Sheet.")
         st.markdown("---")
@@ -2299,7 +2340,7 @@ def _render_announcement_card(row, show_controls=False):
                 announcements_data.loc[announcements_data["ID"] == ann_id, "Active"] = "FALSE"
                 with st.spinner("Archiving..."):
                     conn.update(worksheet="Announcements", data=announcements_data)
-                st.cache_data.clear(); st.rerun()
+                invalidate_announcements(); st.rerun()
         else:
             col_r, col_d = st.columns([1, 4])
             with col_r:
@@ -2307,13 +2348,13 @@ def _render_announcement_card(row, show_controls=False):
                     announcements_data.loc[announcements_data["ID"] == ann_id, "Active"] = "TRUE"
                     with st.spinner("Restoring..."):
                         conn.update(worksheet="Announcements", data=announcements_data)
-                    st.cache_data.clear(); st.rerun()
+                    invalidate_announcements(); st.rerun()
             with col_d:
                 if st.button("🗑️ Delete Permanently", key=f"ann_delete_{ann_id}"):
                     keep = announcements_data[announcements_data["ID"] != ann_id]
                     with st.spinner("Deleting..."):
                         conn.update(worksheet="Announcements", data=keep)
-                    st.cache_data.clear(); st.rerun()
+                    invalidate_announcements(); st.rerun()
         st.markdown("<div style='margin-bottom:4px;'></div>", unsafe_allow_html=True)
 
 
@@ -2383,7 +2424,7 @@ def _manage_announcements():
                         conn.update(worksheet="Announcements", data=updated)
                     # Store title in session state so confirmation survives the rerun
                     st.session_state["ann_posted"] = title.strip()
-                    st.cache_data.clear()
+                    invalidate_announcements()
                     st.rerun()
 
     elif ann_action == "Manage Existing":
