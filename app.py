@@ -594,6 +594,9 @@ def _fetch_announcements():
         required = ["ID","Title","Message","Link","Link_Label","Posted_By","Date_Posted","Active"]
         for col in required:
             if col not in df.columns: df[col] = ""
+        # Cast all columns to str so Active can always hold "TRUE"/"FALSE"
+        # without pandas FutureWarning about incompatible dtypes
+        df = df.astype(str).replace("nan", "")
         return df
     except: return DEFAULT_ANNOUNCEMENTS.copy()
 
@@ -795,9 +798,9 @@ def display_suggested_paces(target_username):
     if not best_sec:
         st.info("**New Runner:** When you have races logged, you will see a personalized pace calculator here! For now, review the Master Pace Chart below.")
         st.markdown("### Master VDOT Pace Chart")
-        st.dataframe(vdot_df[["VDOT"] + pace_cols].rename(columns=col_rename), hide_index=True, use_container_width=True)
+        st.dataframe(vdot_df[["VDOT"] + pace_cols].rename(columns=col_rename), hide_index=True, width='stretch')
         st.markdown("### Master Rest Cycles")
-        st.dataframe(rest_data, hide_index=True, use_container_width=True)
+        st.dataframe(rest_data, hide_index=True, width='stretch')
         return
 
     vdot_df["sec"] = vdot_df["2_Mile_Time" if "2-Mile" in baseline_source else "5K_Time"].apply(time_to_seconds)
@@ -847,9 +850,9 @@ def display_suggested_paces(target_username):
         return ['background-color: rgba(139, 35, 49, 0.2)'] * len(row) if row["VDOT"] == matched_vdot else [''] * len(row)
 
     st.markdown("### Your Target Pace Bracket")
-    st.dataframe(bracket_df[["VDOT"] + pace_cols].rename(columns=col_rename).style.apply(highlight_match, axis=1), hide_index=True, use_container_width=True)
+    st.dataframe(bracket_df[["VDOT"] + pace_cols].rename(columns=col_rename).style.apply(highlight_match, axis=1), hide_index=True, width='stretch')
     st.markdown("### Master Rest Cycles")
-    st.dataframe(rest_data, hide_index=True, use_container_width=True)
+    st.dataframe(rest_data, hide_index=True, width='stretch')
 
 def display_team_resources():
     """
@@ -928,8 +931,8 @@ def display_career_history(target_username):
         fig.update_layout(**plotly_chart_defaults(), margin=dict(t=40, b=0, l=0, r=0), height=300, bargap=0.1)
         col_chart, _ = st.columns([1, 1.5])
         with col_chart:
-            st.plotly_chart(fig, use_container_width=True, theme=None)
-        st.dataframe(prs[["Season", "Total_Time", "Meet_Name", "Date"]].rename(columns={"Total_Time": "PR Time", "Meet_Name": "Meet", "Date": "Date Achieved"}), hide_index=True, use_container_width=True)
+            st.plotly_chart(fig, width='stretch', theme=None)
+        st.dataframe(prs[["Season", "Total_Time", "Meet_Name", "Date"]].rename(columns={"Total_Time": "PR Time", "Meet_Name": "Meet", "Date": "Date Achieved"}), hide_index=True, width='stretch')
         st.markdown("<br><br>", unsafe_allow_html=True)
     if not found_any: st.info("No valid races found to build progression history.")
 
@@ -975,7 +978,7 @@ def show_rankings_tab():
             label = "PR Time" if r_metric == "Personal Record (PR)" else "Weighted Avg Time"
             _, center_col, _ = st.columns([1, 2, 1])
             with center_col:
-                st.dataframe(rank_df[["Rank", "Athlete", "Mark"]].rename(columns={"Mark": label}), hide_index=True, use_container_width=True)
+                st.dataframe(rank_df[["Rank", "Athlete", "Mark"]].rename(columns={"Mark": label}), hide_index=True, width='stretch')
 
     with tab_grid:
         st.markdown(f"### Master {r_dist} Grid")
@@ -986,7 +989,7 @@ def show_rankings_tab():
         grid_df["Race_Col"] = grid_df["Meet_Name"] + " (" + grid_df["Date_Obj"].dt.strftime("%m/%d").fillna("") + ") [" + grid_df["Weight"].apply(lambda x: f"{float(x):.1f}") + "x]"
         ordered_cols = grid_df["Race_Col"].unique().tolist()
         pivot_df = grid_df.pivot_table(index="Athlete", columns="Race_Col", values="Total_Time", aggfunc="first").reindex(columns=ordered_cols).fillna("-").reset_index()
-        st.dataframe(pivot_df, hide_index=True, use_container_width=True)
+        st.dataframe(pivot_df, hide_index=True, width='stretch')
 
 def plot_athlete_progress(user_races):
     df = user_races[(user_races["Distance"].str.upper() == "5K") & (user_races["Time_Sec"] > 0)].copy()
@@ -1000,7 +1003,7 @@ def plot_athlete_progress(user_races):
     fig.update_yaxes(title="Finish Time (Minutes)")
     fig.update_xaxes(title="Race Date")
     fig.update_layout(**plotly_chart_defaults(), margin=dict(t=50, b=20, l=20, r=20))
-    st.plotly_chart(fig, use_container_width=True, theme=None)
+    st.plotly_chart(fig, width='stretch', theme=None)
     st.markdown("---")
 
 def display_athlete_races(username, season):
@@ -1028,7 +1031,7 @@ def display_athlete_races(username, season):
         st.subheader(f"{dist} Races")
         dist_df = display_df[display_df["Distance"] == dist]
         cols = ["Date", "Meet", "Distance", "Mile 1", "Mile 2", "Finish Time", "Avg Pace"] if str(dist).upper() == "5K" else ["Date", "Meet", "Distance", "Mile 1", "Finish Time", "Avg Pace"]
-        st.dataframe(dist_df[cols], hide_index=True, use_container_width=True)
+        st.dataframe(dist_df[cols], hide_index=True, width='stretch')
         st.markdown("<br>", unsafe_allow_html=True)
 
 def display_athlete_workouts(target_username, target_season):
@@ -1047,7 +1050,7 @@ def display_athlete_workouts(target_username, target_season):
     with tab_log:
         st.markdown("### Master Workout Log")
         st.dataframe(user_workouts[["Date_Formatted", "Workout_Type", "Rep_Distance", "Status", "Splits", "Weather"]].rename(
-            columns={"Date_Formatted": "Date", "Workout_Type": "Type", "Rep_Distance": "Details"}), hide_index=True, use_container_width=True)
+            columns={"Date_Formatted": "Date", "Workout_Type": "Type", "Rep_Distance": "Details"}), hide_index=True, width='stretch')
 
     with tab_spread:
         st.markdown("### Specific Session Variance")
@@ -1070,7 +1073,7 @@ def display_athlete_workouts(target_username, target_season):
                 fig = px.scatter(gdf, x="Rep Number", y="Split Time", title="Interval Pacing Variance", hover_data={"Split Time": False, "Formatted": True})
                 fig.update_traces(marker=dict(size=14, color=get_theme_val("line"), line=dict(width=2, color="DarkSlateGrey")))
                 fig.update_layout(**plotly_chart_defaults())
-                st.plotly_chart(fig, use_container_width=True, theme=None)
+                st.plotly_chart(fig, width='stretch', theme=None)
             else:
                 st.info("This workout does not have enough split data to analyze variance.")
 
@@ -1092,7 +1095,7 @@ def display_athlete_workouts(target_username, target_season):
                 fig2 = px.line(tdf, x="Date", y="Avg_Min", markers=True, title=f"Average Pace Over Time: {sel_combo}", hover_data={"Date": "|%b %d", "Avg_Min": False, "Formatted": True})
                 fig2.update_traces(line_color=get_theme_val("line"), line_width=3, marker_size=10)
                 fig2.update_layout(**plotly_chart_defaults())
-                st.plotly_chart(fig2, use_container_width=True, theme=None)
+                st.plotly_chart(fig2, width='stretch', theme=None)
             else:
                 st.info("You need to complete this specific workout at least twice to generate a trend line!")
 
@@ -1107,7 +1110,7 @@ def login_page():
         with st.form("login_form"):
             username = st.text_input("Username", autocomplete="off")
             password = st.text_input("Password", type="password", autocomplete="new-password")
-            if st.form_submit_button("Log In", use_container_width=True):
+            if st.form_submit_button("Log In", width='stretch'):
                 user_row = roster_data[roster_data["Username"] == username]
                 if user_row.empty:
                     st.error("Username not found.")
@@ -1131,7 +1134,7 @@ def password_reset_page():
         with st.form("reset_password_form"):
             new_password = st.text_input("New Password", type="password", autocomplete="new-password")
             confirm_password = st.text_input("Confirm New Password", type="password", autocomplete="new-password")
-            if st.form_submit_button("Update Password", use_container_width=True):
+            if st.form_submit_button("Update Password", width='stretch'):
                 if len(new_password) < 4: st.error("Password must be at least 4 characters long.")
                 elif new_password != confirm_password: st.error("Passwords do not match.")
                 else:
@@ -1184,7 +1187,7 @@ def _render_settings_overlay():
             "></div>
         """, unsafe_allow_html=True)
     with btn_col:
-        if st.button(btn_label, key="settings_toggle_btn", use_container_width=True):
+        if st.button(btn_label, key="settings_toggle_btn", width='stretch'):
             st.session_state["settings_open"] = not st.session_state["settings_open"]
             st.rerun()
 
@@ -1227,7 +1230,7 @@ def _render_settings_overlay():
             st.button(
                 "Log Out",
                 on_click=logout,
-                use_container_width=True,
+                width='stretch',
                 key="settings_logout_btn"
             )
         st.markdown("---")
@@ -1322,9 +1325,10 @@ def _tab_roster_management():
         if "Grad_Year" in active_roster.columns:
             active_roster["Grade"] = active_roster["Grad_Year"].apply(get_grade_level)
             display_roster = active_roster[["First_Name", "Last_Name", "Gender", "Grade", "Grad_Year", "Role"]].copy()
+            display_roster["Grad_Year"] = display_roster["Grad_Year"].astype(str)  # prevent Arrow int64 cast error
             display_roster["Sort_Year"] = pd.to_numeric(display_roster["Grad_Year"], errors="coerce").fillna(9999)
             display_roster = display_roster.sort_values(["Role", "Sort_Year", "Gender", "Last_Name"]).drop(columns=["Sort_Year"])
-            st.dataframe(display_roster, hide_index=True, use_container_width=True)
+            st.dataframe(display_roster, hide_index=True, width='stretch')
         else:
             st.dataframe(active_roster[["First_Name", "Last_Name", "Role"]].sort_values("Last_Name"), hide_index=True)
 
@@ -1818,12 +1822,12 @@ def _de_race_results():
     }
     st.caption("Type times as-is (e.g. 18:45). Blank rows are ignored in rankings.")
     edited_df = st.data_editor(pd.DataFrame(grid_data), hide_index=True,
-                                column_config=col_config, use_container_width=True,
+                                column_config=col_config, width='stretch',
                                 key="race_results_editor")
 
     col_save, col_del = st.columns(2)
     with col_save:
-        if st.button("💾 Save All Race Results", type="primary", use_container_width=True):
+        if st.button("💾 Save All Race Results", type="primary", width='stretch'):
             for _, row in edited_df.iterrows():
                 mask = ((races_data["Meet_Name"] == sel_meet) &
                         (races_data["Race_Name"] == sel_race) &
@@ -1834,7 +1838,7 @@ def _de_race_results():
             with st.spinner("Saving..."): conn.update(worksheet="Races", data=races_data)
             st.success("Results saved!"); invalidate_races(); st.rerun()
     with col_del:
-        if st.button("🗑️ Delete Entire Race", use_container_width=True):
+        if st.button("🗑️ Delete Entire Race", width='stretch'):
             keep = races_data[~((races_data["Meet_Name"] == sel_meet) &
                                 (races_data["Race_Name"] == sel_race))]
             with st.spinner("Deleting..."): conn.update(worksheet="Races", data=keep)
@@ -2017,7 +2021,7 @@ def _de_workouts():
             col_config[f"Rep {i}"] = st.column_config.TextColumn(f"Rep {i}")
 
         edited_df = st.data_editor(pd.DataFrame(grid_data), hide_index=True,
-                                    column_config=col_config, use_container_width=True,
+                                    column_config=col_config, width='stretch',
                                     key="new_workout_editor")
 
         if st.button("💾 Save Workout Data", type="primary"):
@@ -2133,12 +2137,12 @@ def _de_workouts():
             col_config[f"Rep {i}"] = st.column_config.TextColumn(f"Rep {i}")
         st.caption("Edit splits directly. Type the corrected time (e.g. 1:04).")
         edited_df = st.data_editor(pd.DataFrame(grid_data), hide_index=True,
-                                    column_config=col_config, use_container_width=True,
+                                    column_config=col_config, width='stretch',
                                     key="edit_workout_editor")
 
         col_save, col_del = st.columns(2)
         with col_save:
-            if st.button("💾 Save All Edits", type="primary", use_container_width=True):
+            if st.button("💾 Save All Edits", type="primary", width='stretch'):
                 keep = workouts_data[~((workouts_data["Date"] == old_date) &
                                        (workouts_data["Workout_Type"] == old_type))]
                 fmt_date = pd.to_datetime(new_date).strftime("%Y-%m-%d")
@@ -2156,7 +2160,7 @@ def _de_workouts():
                 with st.spinner("Updating..."): conn.update(worksheet="Workouts", data=updated)
                 st.success("Workout updated!"); invalidate_workouts(); st.rerun()
         with col_del:
-            if st.button("🗑️ Delete This Workout", use_container_width=True):
+            if st.button("🗑️ Delete This Workout", width='stretch'):
                 keep = workouts_data[~((workouts_data["Date"] == old_date) &
                                        (workouts_data["Workout_Type"] == old_type))]
                 with st.spinner("Deleting..."): conn.update(worksheet="Workouts", data=keep)
@@ -2235,7 +2239,7 @@ def _tab_manage():
         st.info("These tables drive the personalized pace calculator shown to athletes. Edit carefully — changes take effect immediately.")
         t1, t2 = st.tabs(["VDOT Pace Chart", "Rest Cycles"])
         with t1:
-            edited_vdot = st.data_editor(vdot_data, num_rows="dynamic", use_container_width=True)
+            edited_vdot = st.data_editor(vdot_data, num_rows="dynamic", width='stretch')
             if st.button("💾 Save Pace Chart", type="primary"):
                 try:
                     with st.spinner("Saving..."): conn.update(worksheet="VDOT", data=edited_vdot)
@@ -2243,7 +2247,7 @@ def _tab_manage():
                 except Exception:
                     st.error("Missing tab — add a sheet named **VDOT** in your Google Sheet.")
         with t2:
-            edited_rest = st.data_editor(rest_data, num_rows="dynamic", use_container_width=True)
+            edited_rest = st.data_editor(rest_data, num_rows="dynamic", width='stretch')
             if st.button("💾 Save Rest Cycles", type="primary"):
                 try:
                     with st.spinner("Saving..."): conn.update(worksheet="Rest", data=edited_rest)
@@ -2254,7 +2258,7 @@ def _tab_manage():
     elif action == "Team Documents":
         st.subheader("Team Documents")
         st.info("Paste 'Publish to Web' links from Google Docs. They appear on every athlete's Team Resources tab. (File → Share → Publish to Web → Copy Link)")
-        edited_docs = st.data_editor(docs_data, num_rows="dynamic", use_container_width=True)
+        edited_docs = st.data_editor(docs_data, num_rows="dynamic", width='stretch')
         if st.button("💾 Save Documents", type="primary"):
             try:
                 with st.spinner("Saving..."): conn.update(worksheet="Documents", data=edited_docs)
@@ -2302,7 +2306,15 @@ def _render_announcement_card(row, show_controls=False):
     posted_by = html_lib.escape(str(row.get("Posted_By", "Coach")).strip())
     link      = str(row.get("Link", "")).strip()            # URL — not escaped (needs to stay valid)
     raw_label = str(row.get("Link_Label", "")).strip()
-    label     = html_lib.escape(raw_label) if raw_label else "View Link"
+    if raw_label:
+        label = html_lib.escape(raw_label)
+    elif link.startswith("http"):
+        # Show a shortened URL so athletes know what they are clicking
+        from urllib.parse import urlparse
+        parsed = urlparse(link)
+        label = html_lib.escape(parsed.netloc or link[:40])
+    else:
+        label = "View Link"
 
     # Only render a link if the URL actually looks like one
     link_html = ""
