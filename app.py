@@ -41,6 +41,7 @@ def _push_meet_to_firebase(meet_name, meet_date, races_list):
         payload = {
             "name":    meet_name,
             "date":    str(meet_date),
+            "season":  calculate_season(str(meet_date)),
             "races":   races_payload,
             "createdAt": str(pd.Timestamp.now(tz="America/New_York"))
         }
@@ -2560,7 +2561,7 @@ def _tab_manage():
     st.subheader("Manage")
     action = st.radio(
         "Select task:",
-        ["Announcements", "Meet Weights", "Archive a Meet", "Pacing & Rest Tables", "Team Documents"],
+        ["Announcements", "Meet Weights", "Archive a Meet", "Pacing & Rest Tables", "Team Documents", "Race Timer Sync"],
         horizontal=True
     )
     st.markdown("---")
@@ -2646,6 +2647,9 @@ def _tab_manage():
                 st.error("Missing tab — add a sheet named **Documents** in your Google Sheet.")
         st.markdown("---")
         display_team_resources()
+
+    elif action == "Race Timer Sync":
+        _manage_timer_sync()
 
 
 # ==========================================
@@ -2872,6 +2876,110 @@ def _athlete_announcements_tab():
 
     for _, row in active.iterrows():
         _render_announcement_card(row, show_controls=False)
+
+
+def _manage_timer_sync():
+    """
+    Syncs current-season meets from Google Sheets into Firebase so they
+    appear in the race timer dropdown.
+
+    Why this exists:
+    - Meets created BEFORE the Firebase push code was added won't be in Firebase.
+    - This one-time (or occasional) sync button catches them all up.
+    - Only pushes CURRENT_SEASON meets so the timer dropdown stays clean.
+    - Safe to run multiple times — Firebase uses PUT which overwrites cleanly.
+    - Test meets can be deleted individually using the Delete button below.
+
+    After syncing, only current-season meets appear in the timer because
+    timer.html filters by season === CURRENT_SEASON on load.
+    """
+    st.subheader("Race Timer Sync")
+    st.markdown(
+        "This panel syncs your current-season meets into Firebase so they appear "
+        "in the race timer dropdown. New meets you create automatically sync — "
+        "use this only to push **existing** meets that were created before this "
+        "feature was added."
+    )
+
+    # ── Show what's currently in Firebase ────────────────────────────────────
+    db_url  = st.secrets.get("firebase_db_url",  "https://mcxc-timer-default-rtdb.firebaseio.com")
+    api_key = st.secrets.get("firebase_api_key", "AIzaSyAKFLshFCubsJtJ5TTb7FFWB2kUl-wph_c")
+
+    st.markdown("### Current Season Meets in Google Sheet")
+    current_meets = (
+        races_data[
+            (races_data["Active"].isin(ACTIVE_FLAGS)) &
+            (races_data["Season"] == CURRENT_SEASON)
+        ]["Meet_Name"].dropna().unique().tolist()
+    )
+
+    if not current_meets:
+        st.info(f"No active meets found for the {CURRENT_SEASON} season.")
+    else:
+        st.markdown(f"Found **{len(current_meets)}** meet(s) for {CURRENT_SEASON}:")
+        for m in sorted(current_meets):
+            st.markdown(f"- {m}")
+
+        if st.button("Sync All Current Season Meets to Timer", type="primary"):
+            pushed, failed = 0, 0
+            with st.spinner("Syncing meets to Firebase..."):
+                for meet_name in current_meets:
+                    meet_rows = races_data[races_data["Meet_Name"] == meet_name]
+                    meet_date = meet_rows["Date"].iloc[0] if not meet_rows.empty else ""
+                    race_names = meet_rows["Race_Name"].dropna().unique().tolist()
+
+                    firebase_races = []
+                    for race_name in race_names:
+                        race_rows = meet_rows[meet_rows["Race_Name"] == race_name]
+                        dist = race_rows["Distance"].iloc[0] if not race_rows.empty else "5K"
+                        runner_list = []
+                        for _, r in race_rows.iterrows():
+                            match = roster_data[roster_data["Username"] == r["Username"]]
+                            rname = (f"{match.iloc[0]['First_Name']} {match.iloc[0]['Last_Name']}"
+                                     if not match.empty else r["Username"])
+                            pr_time, _ = _get_athlete_pr(r["Username"], races_data, season=CURRENT_SEASON)
+                            runner_list.append({"username": r["Username"], "name": rname, "pr": pr_time or ""})
+                        firebase_races.append({"name": race_name, "dist": dist, "runners": runner_list})
+
+                    ok = _push_meet_to_firebase(meet_name, meet_date, firebase_races)
+                    if ok: pushed += 1
+                    else:  failed += 1
+
+            if failed == 0:
+                st.success(f"Synced {pushed} meet(s) to Firebase successfully.")
+            else:
+                st.warning(f"Synced {pushed} meet(s). {failed} failed — check your Firebase secrets.")
+
+    st.markdown("---")
+    st.markdown("### Delete a Meet from Firebase")
+    st.markdown(
+        "Use this to remove test meets or old entries that shouldn't appear "
+        "in the timer dropdown. This only removes from Firebase — "
+        "your Google Sheet data is untouched."
+    )
+
+    col1, _ = st.columns([1, 2])
+    with col1:
+        del_meet_key = st.text_input(
+            "Firebase meet key to delete",
+            placeholder="e.g. Great_American_XC_20260912",
+            autocomplete="off",
+            key="del_firebase_key"
+        )
+    st.caption(
+        "The key is the meet name with spaces replaced by underscores + the date (no dashes). "
+        "You can find it in your Firebase console under the 'meets' node."
+    )
+    if del_meet_key and st.button("Delete from Firebase", key="del_fb_btn"):
+        try:
+            url  = f"{db_url}/meets/{del_meet_key}.json"
+            resp = requests.delete(url, timeout=5)
+            if resp.status_code == 200:
+                st.success(f"Deleted '{del_meet_key}' from Firebase.")
+            else:
+                st.error(f"Delete failed (HTTP {resp.status_code}). Check the key and try again.")
+        except Exception as e:
+            st.error(f"Could not connect to Firebase: {e}")
 
 
 # ---- ATHLETE VIEW ----
