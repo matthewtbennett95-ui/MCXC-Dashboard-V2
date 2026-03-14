@@ -265,7 +265,13 @@ select option { background: var(--surface2); }
   <div class="offline-bar" id="offline-bar">Offline — splits saved locally</div>
   <div class="timer-header">
     <div class="header-top">
-      <div class="meet-title" id="header-meet-title">Meet</div>
+      <button onclick="goBackToSetup()" style="
+        background:none;border:none;color:var(--muted);
+        font-family:var(--head);font-size:13px;font-weight:700;
+        letter-spacing:1px;text-transform:uppercase;cursor:pointer;
+        padding:0;margin-right:10px;white-space:nowrap;flex-shrink:0;
+      ">← Back</button>
+      <div class="meet-title" id="header-meet-title" style="flex:1;">Meet</div>
       <div class="conn-badge">
         <div class="status-dot" id="timer-conn-dot"></div>
         <span id="timer-conn-label">Live</span>
@@ -718,15 +724,87 @@ window.handleStartStop = function() {
 function updateStartBtn() {
   $('start-btn').textContent = 'RUNNING';
   $('start-btn').className   = 'start-btn running';
-  // Hide the "all coaches must select first" notice once race is live
   const notice = $('ready-notice');
   if (notice) notice.style.display = 'none';
+}
+
+/**
+ * Navigate back to race selection without a page refresh.
+ * Stops the clock display, clears all local race state, and shows
+ * the setup screen. The race data remains in Firebase — if the coach
+ * comes back to the same race, the clock and splits reload from Firebase.
+ * Confirms if the clock is currently running to prevent accidental navigation.
+ */
+window.goBackToSetup = function() {
+  if (raceStartedAt && clockInterval) {
+    // Clock is running — confirm before leaving
+    if (!confirm('The clock is still running. Go back to race selection?')) return;
+  }
+  // Stop display clock (leave startedAt in Firebase so rejoining works)
+  if (clockInterval) { clearInterval(clockInterval); clockInterval = null; }
+  // Reset local state
+  raceStartedAt   = null;
+  recordedSplits  = {};
+  lastTapStack    = [];
+  pendingLocal    = {};
+  selectedMeetKey = '';
+  selectedRaceKey = '';
+  selectedMeet    = '';
+  selectedRace    = '';
+  // Reset UI elements
+  $('clock').textContent = '00:00.00';
+  $('clock').className   = 'clock-display';
+  $('start-btn').textContent = 'START';
+  $('start-btn').className   = 'start-btn';
+  $('undo-btn').disabled = true;
+  $('meet-select').value = '';
+  $('race-select').innerHTML = '<option value="">Select a meet first</option>';
+  $('race-select').disabled  = true;
+  $('enter-btn').disabled    = true;
+  // Auto-clear the auto-stop timer if running
+  if (window._autoStopTimer) { clearTimeout(window._autoStopTimer); window._autoStopTimer = null; }
+  showScreen('setup-screen');
+};
+
+/**
+ * Auto-stop the display clock 40 minutes after the last recorded split.
+ * Resets the timer each time a new split is recorded so a slow finisher
+ * never triggers it prematurely.
+ * Only stops the display (interval) — startedAt in Firebase is untouched
+ * so times remain valid and the clock can be "restarted" visually if needed.
+ */
+function scheduleAutoStop() {
+  if (window._autoStopTimer) clearTimeout(window._autoStopTimer);
+  window._autoStopTimer = setTimeout(() => {
+    if (!clockInterval) return; // already stopped
+    clearInterval(clockInterval);
+    clockInterval = null;
+    $('start-btn').textContent = 'DONE';
+    $('start-btn').className   = 'start-btn waiting';
+    $('clock').className       = 'clock-display stopped';
+    showToast('Clock auto-stopped (40 min since last split)', 'warning');
+  }, 40 * 60 * 1000); // 40 minutes
+}
+
+// Also schedule a hard stop 2 hours after race start regardless of splits
+// (catches the truly-forgotten clock scenario)
+function scheduleHardStop() {
+  setTimeout(() => {
+    if (!clockInterval) return;
+    clearInterval(clockInterval);
+    clockInterval = null;
+    $('start-btn').textContent = 'DONE';
+    $('start-btn').className   = 'start-btn waiting';
+    $('clock').className       = 'clock-display stopped';
+  }, 2 * 60 * 60 * 1000); // 2 hours
 }
 
 function startClock() {
   if (clockInterval) return;
   $('clock').className = 'clock-display running';
   clockInterval = setInterval(() => { $('clock').textContent = msToDisplay(elapsedMs(), 2); }, 50);
+  scheduleHardStop();    // absolute ceiling: 2 hours
+  scheduleAutoStop();    // rolling: 40 min after last split (or race start if no splits)
 }
 
 // ── SPLIT SELECTOR ────────────────────────────────────────────────────────────
@@ -743,7 +821,7 @@ window.tapRunner = function(username) {
   const elapsed = elapsedMs();
   if (elapsed <= 0) return;
 
-  // If already recorded, open edit modal
+  // If already recorded for this split, open edit modal instead
   if (recordedSplits[username]?.[currentSplit]) {
     openEditModal(username, currentSplit, recordedSplits[username][currentSplit]); return;
   }
@@ -756,17 +834,52 @@ window.tapRunner = function(username) {
 
   $('undo-btn').disabled = false;
 
-  // Render immediately from local state — do NOT wait for Firebase round-trip.
-  // The UI updates instantly; Firebase write happens in background.
-  // The onValue listener will confirm but the screen is already correct.
-  renderRunnerList();
+  // Step 1: Update the tapped row IN PLACE immediately — no full list rebuild.
+  // This makes the time chip appear and the border turn green instantly,
+  // with no layout shift or scroll position change.
+  updateRunnerRowInPlace(username);
+
+  // Step 2: Schedule the full reorder (moves runner to Recorded section)
+  // on the next animation frame so the in-place update paints first.
+  // The user sees the time immediately; the row moves ~16ms later.
+  requestAnimationFrame(() => renderRunnerList());
+
   showToast(`${getRunnerName(username)} — ${msToDisplay(elapsed)}`, 'success');
 
-  // Fire-and-forget Firebase write after UI is already updated
+  // Reset the 40-min auto-stop timer on every recorded split
+  scheduleAutoStop();
+
+  // Fire-and-forget Firebase write — happens after UI is already updated
   writeSplit(username, currentSplit, elapsed);
 };
 
 function getRunnerName(u) { return runnersData.find(r=>r.username===u)?.name || u; }
+
+/**
+ * Updates a single runner row's chip display and border color without
+ * rebuilding the entire list. This is the fast path for a tap — the
+ * runner's time appears instantly without any DOM reorder.
+ */
+function updateRunnerRowInPlace(username) {
+  const row = document.getElementById(`rr-${username}`);
+  if (!row) return;
+
+  const s      = recordedSplits[username] || {};
+  const isMine = s.coach === coachName;
+
+  // Update border to green (recorded)
+  row.className = 'runner-row recorded';
+
+  // Rebuild just the chips block
+  const chip = (split, label) => s[split]
+    ? `<div class="split-chip ${isMine?'mine':'other'}"
+          onclick="openEditModal('${username}','${split}',${s[split]})"
+       >${label}: ${msToDisplay(s[split])}</div>`
+    : '';
+  const chips = chip('mile1','M1') + chip('mile2','M2') + chip('finish','Fin');
+  const chipsBlock = row.querySelector('.split-chips');
+  if (chipsBlock) chipsBlock.innerHTML = chips || '<div class="split-chip">—</div>';
+}
 
 function writeSplit(username, split, ms) {
   if (isOnline) {
