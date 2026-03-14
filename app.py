@@ -8,6 +8,48 @@ import plotly.express as px
 import numpy as np
 import re
 from streamlit_gsheets import GSheetsConnection
+import json
+
+def _push_meet_to_firebase(meet_name, meet_date, races_list):
+    """
+    Writes meet data to Firebase Realtime Database so the timer.html tool
+    can load it from its dropdown without manual entry.
+
+    races_list: [{"name": str, "dist": str, "runners": [{"username": str, "name": str, "pr": str}]}]
+
+    Uses the Firebase REST API (no firebase-admin SDK needed — just HTTP).
+    The database URL and API key are read from Streamlit secrets if available,
+    otherwise this silently skips (timer still works with manual entry).
+    """
+    try:
+        db_url  = st.secrets.get("firebase_db_url", "https://mcxc-timer-default-rtdb.firebaseio.com")
+        api_key = st.secrets.get("firebase_api_key", "AIzaSyAKFLshFCubsJtJ5TTb7FFWB2kUl-wph_c")
+
+        import re as _re
+        meet_key = _re.sub(r'[^a-zA-Z0-9_-]', '_', meet_name) + "_" + str(meet_date).replace("-","")
+
+        races_payload = {}
+        for race in races_list:
+            race_key = _re.sub(r'[^a-zA-Z0-9_-]', '_', race["name"])
+            races_payload[race_key] = {
+                "name":    race["name"],
+                "dist":    race.get("dist", "5K"),
+                "runners": [{"username": r["username"], "name": r["name"], "pr": r.get("pr","")}
+                            for r in race.get("runners", [])]
+            }
+
+        payload = {
+            "name":    meet_name,
+            "date":    str(meet_date),
+            "races":   races_payload,
+            "createdAt": str(pd.Timestamp.now(tz="America/New_York"))
+        }
+
+        url = f"{db_url}/meets/{meet_key}.json"
+        resp = requests.put(url, json=payload, timeout=5)
+        return resp.status_code == 200
+    except Exception:
+        return False  # Silently fail — timer still works with manual entry
 
 # ==========================================
 # 1. APP SETUP & VISUAL THEMES
@@ -1667,7 +1709,7 @@ def _printable_new_meet():
             st.download_button(
                 label="⬇️ Download Split Sheet (HTML)",
                 data=final_html,
-                file_name=f"{p_meet.replace(' ', '_')}_SplitSheet.html",
+                file_name=f"{p_meet.replace(' ', '_')}_{pd.to_datetime(p_date).strftime('%Y-%m-%d')}_SplitSheet.html",
                 mime="text/html"
             )
 def _printable_reprint_meet():
@@ -1708,7 +1750,7 @@ def _printable_reprint_meet():
             st.download_button(
                 label="⬇️ Download Split Sheet (HTML)",
                 data=final_html,
-                file_name=f"{p_meet.replace(' ', '_')}_SplitSheet.html",
+                file_name=f"{p_meet.replace(' ', '_')}_{pd.to_datetime(p_date).strftime('%Y-%m-%d')}_SplitSheet.html",
                 mime="text/html"
             )
 
@@ -1768,7 +1810,7 @@ def _printable_workout_sheet():
         st.download_button(
             label="⬇️ Download Workout Sheet (HTML)",
             data=final_html,
-            file_name=f"Workout_{w_type}_{w_dist.replace(' ','_')}.html",
+            file_name=f"Workout_{w_type}_{w_dist.replace(' ','_')}_{w_date.strftime('%Y-%m-%d')}.html",
             mime="text/html"
         )
 
@@ -1958,7 +2000,7 @@ def _printable_attendance():
         st.download_button(
             label="⬇️ Download Attendance Sheet (HTML)",
             data=final_html,
-            file_name=f"{p_gender}_Attendance.html",
+            file_name=f"{p_gender}_Attendance_{pd.Timestamp.now(tz='America/New_York').strftime('%Y-%m-%d')}.html",
             mime="text/html"
         )
 
