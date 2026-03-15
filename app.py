@@ -327,12 +327,15 @@ _tab_active_text = "#FFFFFF"
 _tab_inactive_bg = T["app_bg"]
 _tab_text        = T["text"]
 
-# Dataframe — never use filter:invert, set explicit colors instead
-_df_bg       = T["sidebar_bg"]  if _dark else "#FFFFFF"
-_df_text     = "#FFFFFF"        if _dark else T["text"]
-_df_hdr_bg   = T["app_bg"]      if _dark else T["metric_bg"]
-_df_hdr_text = "#FFFFFF"        if _dark else T["text"]
-_df_border   = "rgba(255,255,255,0.12)" if _dark else T["metric_border"]
+# Dataframe — muted surface that feels embedded, not jarring
+# Dark themes: use app_bg for cells (same as page) with slightly lighter
+# header, so the table reads as part of the page rather than a bright box.
+# Light themes: white cells with metric_bg header.
+_df_bg       = T["app_bg"]      if _dark else "#FFFFFF"
+_df_text     = "rgba(255,255,255,0.85)" if _dark else T["text"]
+_df_hdr_bg   = T["sidebar_bg"]  if _dark else T["metric_bg"]
+_df_hdr_text = T["line"]        if _dark else T["text"]
+_df_border   = "rgba(255,255,255,0.08)" if _dark else T["metric_border"]
 
 # Form / expander background
 _form_bg     = T["sidebar_bg"]  if _dark else T["app_bg"]
@@ -431,15 +434,22 @@ st.markdown(f"""
         background-color: {T["app_bg"]} !important;
     }}
 
-    /* ── Tabs ── */
+    /* ── Tabs — underline style, no solid background block ── */
     [data-testid="stTabs"] [role="tab"] {{
-        background-color: {_tab_inactive_bg} !important;
+        background-color: transparent !important;
         color: {_tab_text} !important;
+        border-bottom: 2px solid transparent !important;
+        padding-bottom: 6px !important;
     }}
     [data-testid="stTabs"] [role="tab"][aria-selected="true"] {{
-        background-color: {_tab_active_bg} !important;
-        color: {_tab_active_text} !important;
-        border-bottom-color: {_tab_active_bg} !important;
+        background-color: transparent !important;
+        color: {_tab_active_bg} !important;
+        border-bottom: 3px solid {_tab_active_bg} !important;
+        font-weight: 700 !important;
+    }}
+    [data-testid="stTabs"] [role="tablist"] {{
+        border-bottom: 1px solid {_field_bdr} !important;
+        gap: 4px !important;
     }}
 
     /* ── Form container ── */
@@ -516,36 +526,58 @@ st.markdown(f"""
         color: #ffffff !important;
     }}
 
-    /* Select dropdown options */
+    /* Select dropdown options — must match field bg exactly */
     [data-baseweb="menu"],
-    [data-baseweb="popover"] {{
+    [data-baseweb="popover"],
+    [data-baseweb="menu"] ul,
+    ul[data-baseweb="menu"] {{
         background-color: {_field_bg} !important;
         color: {_field_text} !important;
+        border-color: {_field_bdr} !important;
     }}
     [data-baseweb="menu"] li,
-    [data-baseweb="option"] {{
+    [data-baseweb="option"],
+    [role="option"] {{
         background-color: {_field_bg} !important;
         color: {_field_text} !important;
     }}
-    [data-baseweb="option"]:hover {{
+    [data-baseweb="option"]:hover,
+    [role="option"]:hover,
+    [aria-selected="true"][role="option"] {{
         background-color: {T["metric_bg"]} !important;
+        color: {_field_text} !important;
+    }}
+    /* Streamlit's own dropdown list container */
+    div[data-baseweb="select"] ~ div,
+    .stSelectbox > div > div > div {{
+        background-color: {_field_bg} !important;
+        color: {_field_text} !important;
     }}
 
-    /* ── Dataframes — explicit colors, NO filter:invert ──
-       The "fuzzy" appearance was caused by the invert filter.
-       We set colors directly instead.                         */
+    /* ── Dataframes ──
+       Dark themes: slightly muted surface so tables feel embedded,
+       not jarring white-on-dark. Light themes: clean white.        */
     [data-testid="stDataFrame"] th,
     [data-testid="stDataEditor"] th {{
         background-color: {_df_hdr_bg} !important;
         color: {_df_hdr_text} !important;
+        border-color: {_df_border} !important;
     }}
     [data-testid="stDataFrame"] td,
     [data-testid="stDataEditor"] td {{
         background-color: {_df_bg} !important;
         color: {_df_text} !important;
+        border-color: {_df_border} !important;
     }}
     [data-testid="stDataFrame"] table,
     [data-testid="stDataEditor"] table {{
+        border-color: {_df_border} !important;
+        background-color: {_df_bg} !important;
+    }}
+    /* Make the dataframe wrapper background match app so it looks embedded */
+    [data-testid="stDataFrame"] > div,
+    [data-testid="stDataEditor"] > div {{
+        background-color: {T["app_bg"]} !important;
         border-color: {_df_border} !important;
     }}
 
