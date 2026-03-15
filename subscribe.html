@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCXC — Enable Notifications</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=Barlow:wght@400;500&display=swap');
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Barlow', sans-serif;
+  background: #0C223F;
+  color: #e8edf5;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.card {
+  background: #111827;
+  border: 1px solid #2a3a52;
+  border-radius: 14px;
+  padding: 32px 28px;
+  max-width: 380px;
+  width: 100%;
+  text-align: center;
+}
+.logo {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 36px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: #8B2331;
+  margin-bottom: 4px;
+}
+.subtitle {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 13px;
+  letter-spacing: 4px;
+  color: #6b7fa3;
+  text-transform: uppercase;
+  margin-bottom: 28px;
+}
+.icon { font-size: 48px; margin-bottom: 16px; }
+h2 {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: #e8edf5;
+  margin-bottom: 10px;
+}
+p {
+  font-size: 14px;
+  color: #6b7fa3;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+.btn {
+  width: 100%;
+  padding: 14px;
+  background: #8B2331;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: 12px;
+}
+.btn:hover { background: #6B1824; }
+.btn:disabled { background: #2a3a52; color: #6b7fa3; cursor: not-allowed; }
+.btn-secondary {
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  color: #6b7fa3;
+  border: 1px solid #2a3a52;
+  border-radius: 10px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.status {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  display: none;
+}
+.status.success { background: rgba(34,197,94,0.1); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); }
+.status.error   { background: rgba(239,68,68,0.1);  color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
+.status.info    { background: rgba(99,102,241,0.1); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">MCXC</div>
+  <div class="subtitle">Team Dashboard</div>
+
+  <div id="checking">
+    <div class="icon">🔔</div>
+    <h2>Push Notifications</h2>
+    <p>Checking your notification status...</p>
+  </div>
+
+  <div id="subscribe-view" style="display:none">
+    <div class="icon">🔔</div>
+    <h2>Enable Notifications</h2>
+    <p>Get notified instantly when coaches post announcements or meet results are published.</p>
+    <button class="btn" onclick="subscribe()">Enable Notifications</button>
+    <button class="btn-secondary" onclick="goBack()">Cancel</button>
+  </div>
+
+  <div id="already-view" style="display:none">
+    <div class="icon">✅</div>
+    <h2>Notifications Enabled</h2>
+    <p>You're all set! You'll receive notifications for announcements and meet results on this device.</p>
+    <button class="btn" onclick="goBack()">Back to Dashboard</button>
+    <button class="btn-secondary" style="margin-top:8px" onclick="unsubscribe()">Disable Notifications</button>
+  </div>
+
+  <div id="unsupported-view" style="display:none">
+    <div class="icon">⚠️</div>
+    <h2>Not Supported</h2>
+    <p>Push notifications require adding this app to your home screen first.</p>
+    <p style="margin-top:8px">On iPhone: tap the Share button → "Add to Home Screen"<br>On Android: tap the menu → "Add to Home Screen"</p>
+    <button class="btn" onclick="goBack()" style="margin-top:16px">Back to Dashboard</button>
+  </div>
+
+  <div id="status-msg" class="status"></div>
+</div>
+
+<script>
+// Read server URL and VAPID public key from URL params
+const params   = new URLSearchParams(window.location.search);
+const SRV      = params.get('srv') || '';
+const PUB      = params.get('pub') || '';
+const DASH_URL = 'https://mcxc-dashbaord-v2.streamlit.app'; // Update if your URL differs
+
+function show(id) {
+  ['checking','subscribe-view','already-view','unsupported-view'].forEach(v => {
+    document.getElementById(v).style.display = v === id ? 'block' : 'none';
+  });
+}
+
+function showStatus(msg, type='info') {
+  const el = document.getElementById('status-msg');
+  el.textContent = msg;
+  el.className = `status ${type}`;
+  el.style.display = 'block';
+}
+
+function urlB64ToUint8(b) {
+  const pad = '='.repeat((4 - b.length % 4) % 4);
+  const raw = atob((b + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from({length: raw.length}, (_, i) => raw.charCodeAt(i));
+}
+
+function goBack() {
+  window.location.href = DASH_URL;
+}
+
+async function init() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    show('unsupported-view'); return;
+  }
+  try {
+    // Register sw.js from this same origin
+    const reg = await navigator.serviceWorker.register('./sw.js');
+    await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    show(sub ? 'already-view' : 'subscribe-view');
+  } catch(e) {
+    show('subscribe-view');
+  }
+}
+
+async function subscribe() {
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') {
+    showStatus('Notifications blocked. Go to your phone Settings → Notifications and allow notifications for this browser, then try again.', 'error');
+    return;
+  }
+  try {
+    showStatus('Subscribing...', 'info');
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlB64ToUint8(PUB)
+    });
+    if (SRV) {
+      const resp = await fetch(SRV + '/subscribe', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(sub.toJSON())
+      });
+      if (!resp.ok) throw new Error('Server error: ' + resp.status);
+    }
+    showStatus('✓ Notifications enabled! Returning to dashboard...', 'success');
+    setTimeout(goBack, 2000);
+  } catch(e) {
+    showStatus('Error: ' + e.message, 'error');
+  }
+}
+
+async function unsubscribe() {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) await sub.unsubscribe();
+    showStatus('Notifications disabled.', 'info');
+    setTimeout(() => show('subscribe-view'), 1500);
+  } catch(e) {
+    showStatus('Error: ' + e.message, 'error');
+  }
+}
+
+init();
+</script>
+</body>
+</html>
