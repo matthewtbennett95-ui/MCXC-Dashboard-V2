@@ -1990,11 +1990,13 @@ def _render_settings_overlay():
                 background-color: {panel_bg};
                 border: 1px solid {panel_border};
                 border-radius: 8px;
-                padding: 18px 24px 12px 24px;
-                margin-bottom: 16px;
+                padding: 8px 16px;
+                margin-bottom: 12px;
+                display: flex;
+                align-items: center;
             ">
-                <p style="margin:0 0 12px 0; font-weight:700;
-                           font-size:16px; color:{panel_text};">
+                <p style="margin:0; font-weight:700;
+                           font-size:14px; color:{panel_text};">
                     ⚙️ Settings
                 </p>
             </div>
@@ -2015,12 +2017,7 @@ def _render_settings_overlay():
                 st.rerun()
 
             st.markdown("<br>", unsafe_allow_html=True)
-            st.button(
-                "Log Out",
-                on_click=logout,
-                width='stretch',
-                key="settings_logout_btn"
-            )
+            st.markdown("**Push Notifications**")
 
         # ── Push notification opt-in ─────────────────────────────────────────
         try:
@@ -2030,35 +2027,38 @@ def _render_settings_overlay():
             notify_server_s = ""
             vapid_pub_s     = ""
 
-        _, notif_col, _ = st.columns([1, 2, 1])
-        with notif_col:
-            st.markdown("**Push Notifications**")
+        _, notif_col2, _ = st.columns([1, 2, 1])
+        with notif_col2:
             if not notify_server_s:
-                st.caption("Notification server not configured in Streamlit secrets.")
+                st.caption("Notification server not configured.")
             else:
                 st.caption("Receive alerts for announcements and meet results.")
 
         if notify_server_s and vapid_pub_s:
-            st.components.v1.html(f"""<!DOCTYPE html>
+            # Full explicit light background so iframe content is always visible
+            _, iframe_col, _ = st.columns([1, 2, 1])
+            with iframe_col:
+                st.components.v1.html(f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-body{{margin:0;padding:4px 0;font-family:system-ui,sans-serif;font-size:14px;background:transparent;}}
-.row{{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;}}
-.btn{{background:#8B2331;color:#fff;border:none;border-radius:6px;padding:10px 20px;
+html,body{{margin:0;padding:6px 0;font-family:system-ui,sans-serif;font-size:14px;
+           background:#ffffff;color:#1e293b;}}
+.row{{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}}
+.btn{{background:#8B2331;color:#fff;border:none;border-radius:6px;padding:9px 18px;
       font-size:14px;font-weight:600;cursor:pointer;}}
-.ok{{color:#22c55e;font-weight:600;}}
+.ok{{color:#22c55e;font-weight:600;font-size:14px;}}
 .dis{{background:none;border:1px solid #94a3b8;color:#64748b;border-radius:4px;
-      padding:4px 10px;font-size:12px;cursor:pointer;margin-left:8px;}}
-.muted{{color:#94a3b8;font-size:13px;}}
+      padding:3px 10px;font-size:12px;cursor:pointer;margin-left:8px;}}
+.muted{{color:#64748b;font-size:13px;}}
 </style></head><body>
 <div class="row">
-  <span id="status" class="muted">Checking notification status...</span>
+  <span id="status" class="muted">Checking...</span>
   <button id="enable-btn" class="btn" onclick="enableNotif()" style="display:none">Enable Notifications</button>
   <span id="enabled-msg" class="ok" style="display:none">✓ Notifications enabled
     <button class="dis" onclick="disableNotif()">Disable</button>
   </span>
-  <span id="unsupported" class="muted" style="display:none">Add app to home screen to enable notifications</span>
+  <span id="unsupported" class="muted" style="display:none">Add app to home screen first</span>
 </div>
 <script>
 const SRV='{notify_server_s.rstrip("/")}',PUB='{vapid_pub_s}';
@@ -2091,6 +2091,15 @@ async function disableNotif(){{
 }}
 init();
 </script></body></html>""", height=80, scrolling=False)
+        _, logout_col, _ = st.columns([1, 2, 1])
+        with logout_col:
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.button(
+                "Log Out",
+                on_click=logout,
+                width='stretch',
+                key="settings_logout_btn"
+            )
         st.markdown("---")
 
 
