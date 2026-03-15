@@ -307,28 +307,121 @@ if "theme" not in st.session_state:
 
 T = THEMES[st.session_state["theme"]]  # Shorthand for current theme
 
-dark_css = ""
+# Derive explicit field colors for this theme so every input/select/textarea
+# always has a consistent, predictable appearance regardless of device dark mode.
+# Light themes use a white field on a light background.
+# Dark themes use a slightly lighter surface on the dark background.
 if T["is_dark"]:
-    dark_css = f"""
-        [data-baseweb="input"] > div, [data-baseweb="select"] > div, [data-baseweb="base-input"] {{
-            background-color: rgba(0,0,0,0.4) !important; color: #FFFFFF !important; border-color: rgba(255,255,255,0.2) !important;
-        }}
-        [data-testid="stForm"] {{ background-color: {T['sidebar_bg']} !important; border-color: rgba(255,255,255,0.1) !important; }}
-        input, textarea, select {{ color: #FFFFFF !important; }}
-        [data-testid="stDataFrame"], [data-testid="stDataEditor"] {{ filter: invert(0.92) hue-rotate(180deg); }}"""
+    field_bg      = T["sidebar_bg"]        # slightly lighter than app_bg
+    field_text    = "#FFFFFF"
+    field_border  = "rgba(255,255,255,0.25)"
+    field_placeholder = "rgba(255,255,255,0.45)"
+    dataframe_filter = "invert(0.92) hue-rotate(180deg)"
+    form_bg       = T["sidebar_bg"]
+else:
+    field_bg      = "#FFFFFF"
+    field_text    = T["text"]
+    field_border  = T["metric_border"]
+    field_placeholder = "rgba(0,0,0,0.35)"
+    dataframe_filter = "none"
+    form_bg       = T["app_bg"]
 
 st.markdown(f"""
     <style>
+        /* ── App background & structure ── */
         .stApp {{ background-color: {T['app_bg']} !important; }}
         [data-testid="stSidebar"] {{ background-color: {T['sidebar_bg']} !important; }}
         [data-testid="stHeader"] {{ background-color: transparent !important; }}
         .color-bar {{ height: 8px; background: {T['bar']}; margin-bottom: 2rem; border-radius: 4px; }}
-        div[data-testid="metric-container"] {{ background-color: {T['metric_bg']} !important; border: 1px solid {T['metric_border']} !important; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }}
-        h1, h2, h3, h4, h5, h6, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ color: {T['header']} !important; }}
-        .stMarkdown p, .stMarkdown li, .stMarkdown span, div[data-testid="stCaptionContainer"], label, .stMetricValue, div[data-testid="stTabs"] button p {{ color: {T['text']} !important; }}
-        div.stButton > button, div.stFormSubmitButton > button {{ background-color: {T['sidebar_bg']} !important; color: {T['text']} !important; border: 1px solid {T['metric_border']} !important; transition: all 0.3s ease; }}
-        div.stButton > button:hover, div.stFormSubmitButton > button:hover {{ border-color: {T['line']} !important; color: {T['line']} !important; background-color: {T['app_bg']} !important; }}
-        {dark_css}
+
+        /* ── Metrics ── */
+        div[data-testid="metric-container"] {{
+            background-color: {T['metric_bg']} !important;
+            border: 1px solid {T['metric_border']} !important;
+            padding: 10px; border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }}
+
+        /* ── Text & headings ── */
+        h1, h2, h3, h4, h5, h6,
+        .stMarkdown h1, .stMarkdown h2, .stMarkdown h3,
+        [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{
+            color: {T['header']} !important;
+        }}
+        .stMarkdown p, .stMarkdown li, .stMarkdown span,
+        div[data-testid="stCaptionContainer"], label, .stMetricValue,
+        div[data-testid="stTabs"] button p {{
+            color: {T['text']} !important;
+        }}
+
+        /* ── Buttons ── */
+        div.stButton > button, div.stFormSubmitButton > button {{
+            background-color: {T['sidebar_bg']} !important;
+            color: {T['text']} !important;
+            border: 1px solid {T['metric_border']} !important;
+            transition: all 0.3s ease;
+        }}
+        div.stButton > button:hover, div.stFormSubmitButton > button:hover {{
+            border-color: {T['line']} !important;
+            color: {T['line']} !important;
+            background-color: {T['app_bg']} !important;
+        }}
+
+        /* ── Form containers ── */
+        [data-testid="stForm"] {{
+            background-color: {form_bg} !important;
+            border-color: {field_border} !important;
+        }}
+
+        /* ── ALL input fields — explicit colors, no browser defaults ──
+           Targets every Streamlit/BaseWeb widget variant so they are
+           always consistent regardless of device dark mode setting.     */
+        input, textarea, select {{
+            background-color: {field_bg} !important;
+            color: {field_text} !important;
+            caret-color: {field_text} !important;
+            border-color: {field_border} !important;
+            color-scheme: light only !important;
+        }}
+        input::placeholder, textarea::placeholder {{
+            color: {field_placeholder} !important;
+        }}
+        [data-baseweb="input"],
+        [data-baseweb="base-input"],
+        [data-baseweb="input"] > div,
+        [data-baseweb="base-input"] > div,
+        [data-baseweb="textarea"] > div,
+        [data-baseweb="select"] > div,
+        [data-baseweb="select"] > div > div {{
+            background-color: {field_bg} !important;
+            color: {field_text} !important;
+            caret-color: {field_text} !important;
+            border-color: {field_border} !important;
+        }}
+        [data-baseweb="input"] input,
+        [data-baseweb="base-input"] input,
+        [data-baseweb="textarea"] textarea {{
+            background-color: {field_bg} !important;
+            color: {field_text} !important;
+            caret-color: {field_text} !important;
+        }}
+
+        /* ── Number input buttons ── */
+        [data-testid="stNumberInput"] button {{
+            background-color: {field_bg} !important;
+            color: {field_text} !important;
+            border-color: {field_border} !important;
+        }}
+
+        /* ── Date input ── */
+        [data-testid="stDateInput"] input {{
+            background-color: {field_bg} !important;
+            color: {field_text} !important;
+        }}
+
+        /* ── Dataframes ── */
+        [data-testid="stDataFrame"],
+        [data-testid="stDataEditor"] {{ filter: {dataframe_filter}; }}
     </style>
     <div class="color-bar"></div>
 """, unsafe_allow_html=True)
@@ -3383,6 +3476,63 @@ def _manage_announcements():
     # Session state flag: show confirmation banner after a successful post
     if "ann_posted" not in st.session_state:
         st.session_state["ann_posted"] = ""
+
+    # ── Notification opt-in for coaches ──────────────────────────────────────
+    notify_server_c = st.secrets.get("notify_server_url", "")
+    if notify_server_c:
+        server_safe_c = notify_server_c.rstrip("/")
+        st.components.v1.html(f"""
+        <div id="notify-banner-coach" style="
+            background:#fff8e1;border:1px solid #ffe082;border-radius:8px;
+            padding:10px 14px;margin-bottom:12px;display:flex;
+            align-items:center;justify-content:space-between;gap:10px;
+            font-family:system-ui,sans-serif;font-size:13px;flex-wrap:wrap;
+        ">
+            <span style="color:#1e293b;">
+                🔔 <strong>Get notified</strong> on this device when you post announcements or results.
+            </span>
+            <button id="notify-btn-coach" onclick="requestNotifyCoach()" style="
+                background:#8B2331;color:#fff;border:none;border-radius:6px;
+                padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;
+            ">Enable</button>
+        </div>
+        <script>
+        const NOTIFY_SERVER_C = '{server_safe_c}';
+        const VAPID_PUBLIC_C  = '{st.secrets.get("vapid_public_key", "")}';
+        (async () => {{
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {{
+                document.getElementById('notify-banner-coach').style.display = 'none'; return;
+            }}
+            try {{
+                const reg = await navigator.serviceWorker.ready;
+                const sub = await reg.pushManager.getSubscription();
+                if (sub) document.getElementById('notify-banner-coach').style.display = 'none';
+            }} catch(e) {{}}
+        }})();
+        async function requestNotifyCoach() {{
+            const perm = await Notification.requestPermission();
+            if (perm !== 'granted') {{ alert('Notifications blocked — enable in browser settings.'); return; }}
+            try {{
+                const reg = await navigator.serviceWorker.ready;
+                const sub = await reg.pushManager.subscribe({{
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8ArrayC(VAPID_PUBLIC_C)
+                }});
+                await fetch(NOTIFY_SERVER_C + '/subscribe', {{
+                    method: 'POST', headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify(sub.toJSON())
+                }});
+                document.getElementById('notify-banner-coach').style.display = 'none';
+                alert('Notifications enabled!');
+            }} catch(e) {{ alert('Error: ' + e.message); }}
+        }}
+        function urlBase64ToUint8ArrayC(b) {{
+            const pad = '='.repeat((4 - b.length % 4) % 4);
+            const raw = window.atob((b + pad).replace(/-/g, '+').replace(/_/g, '/'));
+            return Uint8Array.from({{length: raw.length}}, (_, i) => raw.charCodeAt(i));
+        }}
+        </script>
+        """, height=70, scrolling=False)
 
     ann_action = st.radio(
         "Action:",
