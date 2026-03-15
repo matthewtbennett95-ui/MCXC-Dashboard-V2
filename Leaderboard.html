@@ -146,36 +146,40 @@ thead th {
   letter-spacing: 1px;
   text-transform: uppercase;
   color: rgba(255,255,255,0.8);
-  padding: 10px 8px;
+  padding: 10px 6px;
   text-align: center;
-  white-space: normal;       /* allow wrapping */
-  word-break: break-word;
-  width: 80px;               /* consistent meet column width */
-  min-width: 80px;
-  max-width: 80px;
+  white-space: normal;
+  overflow-wrap: break-word;   /* breaks at word boundaries only, not mid-word */
+  word-break: normal;          /* never cut a word in half */
+  width: 90px;
+  min-width: 90px;
+  max-width: 90px;
   border-right: 1px solid rgba(255,255,255,0.1);
-  vertical-align: bottom;    /* align header text to bottom for neatness */
+  vertical-align: bottom;
+  line-height: 1.3;
 }
 thead th:first-child {
   text-align: left;
   width: 150px;
   min-width: 150px;
   max-width: 150px;
-  white-space: nowrap;       /* name column never wraps */
+  white-space: nowrap;
   border-radius: 10px 0 0 0;
-  vertical-align: middle;
+  vertical-align: middle;      /* "Athlete" centered vertically */
+  font-size: 13px;             /* slightly larger — it's a label not a meet name */
+  letter-spacing: 2px;
 }
 thead th:nth-child(2) {
-  /* Weighted Avg column — slightly wider than meet columns */
-  width: 100px;
-  min-width: 100px;
-  max-width: 100px;
+  width: 105px;
+  min-width: 105px;
+  max-width: 105px;
   white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 thead th:last-child {
-  /* PR column */
-  width: 70px;
-  min-width: 70px;
+  width: 75px;
+  min-width: 75px;
   border-radius: 0 10px 0 0;
   border-right: none;
 }
@@ -190,14 +194,14 @@ tbody tr:hover { background: #f0f4ff; }
 
 tbody td {
   font-size: 13px;
-  padding: 8px 8px;
+  padding: 8px 6px;
   text-align: center;
   color: var(--muted);
   border-right: 1px solid var(--border);
   white-space: nowrap;
-  width: 80px;
-  min-width: 80px;
-  max-width: 80px;
+  width: 90px;
+  min-width: 90px;
+  max-width: 90px;
 }
 tbody td:last-child { border-right: none; }
 tbody td:first-child {
@@ -213,9 +217,9 @@ tbody td:first-child {
   white-space: nowrap;
 }
 tbody td:nth-child(2) {
-  width: 100px;
-  min-width: 100px;
-  max-width: 100px;
+  width: 105px;
+  min-width: 105px;
+  max-width: 105px;
 }
 
 /* Highlight the best time per column */
