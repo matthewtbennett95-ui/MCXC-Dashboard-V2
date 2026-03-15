@@ -2046,10 +2046,20 @@ def _render_settings_overlay():
             )
             _, btn_col, _ = st.columns([1, 2, 1])
             with btn_col:
-                st.link_button(
-                    "Enable Notifications →",
-                    subscribe_url,
-                    use_container_width=True
+                # Use st.markdown to render a styled anchor that matches
+                # the Log Out button appearance (inherits theme button CSS)
+                T_s = THEMES[st.session_state["theme"]]
+                st.markdown(
+                    f'''<a href="{subscribe_url}" target="_blank" style="
+                        display:block;text-align:center;text-decoration:none;
+                        background-color:{T_s["sidebar_bg"]};
+                        color:{T_s["text"]};
+                        border:1px solid {T_s["metric_border"]};
+                        border-radius:8px;padding:10px 16px;
+                        font-size:14px;font-weight:600;
+                        font-family:system-ui,sans-serif;
+                    ">🔔 Enable Notifications</a>''',
+                    unsafe_allow_html=True
                 )
                 st.caption(
                     "Opens a quick setup page. Once done, close it and return here. "
