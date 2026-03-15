@@ -2035,62 +2035,26 @@ def _render_settings_overlay():
                 st.caption("Receive alerts for announcements and meet results.")
 
         if notify_server_s and vapid_pub_s:
-            # Full explicit light background so iframe content is always visible
-            _, iframe_col, _ = st.columns([1, 2, 1])
-            with iframe_col:
-                st.components.v1.html(f"""<!DOCTYPE html>
-<html><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-html,body{{margin:0;padding:6px 0;font-family:system-ui,sans-serif;font-size:14px;
-           background:#ffffff;color:#1e293b;}}
-.row{{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}}
-.btn{{background:#8B2331;color:#fff;border:none;border-radius:6px;padding:9px 18px;
-      font-size:14px;font-weight:600;cursor:pointer;}}
-.ok{{color:#22c55e;font-weight:600;font-size:14px;}}
-.dis{{background:none;border:1px solid #94a3b8;color:#64748b;border-radius:4px;
-      padding:3px 10px;font-size:12px;cursor:pointer;margin-left:8px;}}
-.muted{{color:#64748b;font-size:13px;}}
-</style></head><body>
-<div class="row">
-  <span id="status" class="muted">Checking...</span>
-  <button id="enable-btn" class="btn" onclick="enableNotif()" style="display:none">Enable Notifications</button>
-  <span id="enabled-msg" class="ok" style="display:none">✓ Notifications enabled
-    <button class="dis" onclick="disableNotif()">Disable</button>
-  </span>
-  <span id="unsupported" class="muted" style="display:none">Add app to home screen first</span>
-</div>
-<script>
-const SRV='{notify_server_s.rstrip("/")}',PUB='{vapid_pub_s}';
-function b64(s){{const p='='.repeat((4-s.length%4)%4),r=atob((s+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from({{length:r.length}},(_,i)=>r.charCodeAt(i));}}
-async function init(){{
-  const el=id=>document.getElementById(id);
-  el('status').style.display='none';
-  if(!('serviceWorker' in navigator)||!('PushManager' in window)){{el('unsupported').style.display='inline';return;}}
-  try{{
-    const sub=await (await navigator.serviceWorker.ready).pushManager.getSubscription();
-    el(sub?'enabled-msg':'enable-btn').style.display=sub?'inline':'inline-block';
-  }}catch(e){{el('enable-btn').style.display='inline-block';}}
-}}
-async function enableNotif(){{
-  if(await Notification.requestPermission()!=='granted'){{alert('Blocked — go to phone Settings → Notifications and allow for this browser, then try again.');return;}}
-  try{{
-    const sub=await (await navigator.serviceWorker.ready).pushManager.subscribe({{userVisibleOnly:true,applicationServerKey:b64(PUB)}});
-    await fetch(SRV+'/subscribe',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(sub.toJSON())}});
-    document.getElementById('enable-btn').style.display='none';
-    document.getElementById('enabled-msg').style.display='inline';
-  }}catch(e){{alert('Could not enable: '+e.message);}}
-}}
-async function disableNotif(){{
-  try{{
-    const sub=await (await navigator.serviceWorker.ready).pushManager.getSubscription();
-    if(sub)await sub.unsubscribe();
-    document.getElementById('enabled-msg').style.display='none';
-    document.getElementById('enable-btn').style.display='inline-block';
-  }}catch(e){{alert('Error: '+e.message);}}
-}}
-init();
-</script></body></html>""", height=80, scrolling=False)
+            # Streamlit sandboxes iframes and blocks JS — use a link to a
+            # dedicated subscription page on GitHub Pages instead.
+            # That page handles the Web Push subscription and stores it
+            # in Firebase, then redirects back to the dashboard.
+            subscribe_url = (
+                "https://matthewtbennett95-ui.github.io/MCXC-Dashbaord-V2/"
+                f"subscribe.html?srv={notify_server_s.rstrip('/')}"
+                f"&pub={vapid_pub_s}"
+            )
+            _, btn_col, _ = st.columns([1, 2, 1])
+            with btn_col:
+                st.link_button(
+                    "Enable Notifications →",
+                    subscribe_url,
+                    use_container_width=True
+                )
+                st.caption(
+                    "Opens a quick setup page. Once done, close it and return here. "
+                    "You only need to do this once per device."
+                )
         _, logout_col, _ = st.columns([1, 2, 1])
         with logout_col:
             st.markdown("<br>", unsafe_allow_html=True)
