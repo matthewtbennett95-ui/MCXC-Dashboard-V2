@@ -48,9 +48,12 @@ def _push_meet_to_firebase(meet_name, meet_date, races_list):
 
         url = f"{db_url}/meets/{meet_key}.json"
         resp = requests.put(url, json=payload, timeout=5)
+        if resp.status_code != 200:
+            st.session_state["firebase_sync_error"] = f"HTTP {resp.status_code}: {resp.text[:200]}"
         return resp.status_code == 200
-    except Exception:
-        return False  # Silently fail — timer still works with manual entry
+    except Exception as e:
+        st.session_state["firebase_sync_error"] = str(e)
+        return False
 
 def _push_leaderboard_to_firebase(races_df, roster_df):
     """
@@ -3990,7 +3993,9 @@ def _manage_timer_sync():
             if failed == 0:
                 st.success(f"Synced {pushed} meet(s) to Firebase successfully.")
             else:
-                st.warning(f"Synced {pushed} meet(s). {failed} failed — check your Firebase secrets.")
+                err = st.session_state.get("firebase_sync_error", "Unknown error")
+                st.warning(f"Synced {pushed} meet(s). {failed} failed.")
+                st.error(f"Last error: {err}")
 
     st.markdown("---")
     st.markdown("### Delete a Meet from Firebase")
