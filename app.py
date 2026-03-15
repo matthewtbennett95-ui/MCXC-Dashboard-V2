@@ -1466,7 +1466,15 @@ def get_theme_val(key):
     return THEMES[st.session_state["theme"]][key]
 
 def plotly_chart_defaults():
-    return dict(template=get_theme_val("plotly_template"), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color=get_theme_val("text")))
+    bg = get_theme_val("app_bg")
+    return dict(
+        template=get_theme_val("plotly_template"),
+        paper_bgcolor=bg,
+        plot_bgcolor=bg,
+        font=dict(color=get_theme_val("text")),
+        xaxis=dict(gridcolor=get_theme_val("metric_border"), zerolinecolor=get_theme_val("metric_border")),
+        yaxis=dict(gridcolor=get_theme_val("metric_border"), zerolinecolor=get_theme_val("metric_border")),
+    )
 
 def display_suggested_paces(target_username):
     st.subheader("Suggested Training Paces")
@@ -1985,6 +1993,100 @@ def _render_settings_overlay():
             if chosen != st.session_state["theme"]:
                 st.session_state["theme"] = chosen
                 st.rerun()
+
+            # ── Push notification opt-in ──────────────────────────────────
+            notify_server_s = st.secrets.get("notify_server_url", "")
+            vapid_pub_s     = st.secrets.get("vapid_public_key", "")
+            if notify_server_s and vapid_pub_s:
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("**Push Notifications**")
+                st.components.v1.html(f"""
+                <div style="font-family:system-ui,sans-serif;font-size:13px;">
+                <div id="notif-status" style="color:#64748b;margin-bottom:8px;">Checking status...</div>
+                <button id="notif-btn" onclick="handleNotifToggle()" style="
+                    background:#8B2331;color:#fff;border:none;border-radius:6px;
+                    padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;
+                    display:none;
+                ">Enable Notifications</button>
+                <div id="notif-enabled" style="color:#22c55e;font-weight:600;display:none;">
+                    ✓ Notifications enabled
+                    <button onclick="disableNotif()" style="
+                        margin-left:10px;background:none;border:1px solid #94a3b8;
+                        color:#64748b;border-radius:4px;padding:3px 8px;
+                        font-size:11px;cursor:pointer;
+                    ">Disable</button>
+                </div>
+                <div id="notif-unsupported" style="color:#94a3b8;display:none;">
+                    Not supported in this browser. Add the app to your home screen and try again.
+                </div>
+                </div>
+                <script>
+                const NOTIFY_SRV  = '{notify_server_s.rstrip("/")}';
+                const VAPID_PUB   = '{vapid_pub_s}';
+
+                function urlB64ToUint8(b) {{
+                    const pad = '='.repeat((4-b.length%4)%4);
+                    const raw = atob((b+pad).replace(/-/g,'+').replace(/_/g,'/'));
+                    return Uint8Array.from({{length:raw.length}},(_,i)=>raw.charCodeAt(i));
+                }}
+
+                async function checkStatus() {{
+                    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {{
+                        document.getElementById('notif-status').style.display = 'none';
+                        document.getElementById('notif-unsupported').style.display = 'block';
+                        return;
+                    }}
+                    document.getElementById('notif-status').style.display = 'none';
+                    try {{
+                        const reg = await navigator.serviceWorker.ready;
+                        const sub = await reg.pushManager.getSubscription();
+                        if (sub) {{
+                            document.getElementById('notif-enabled').style.display = 'block';
+                        }} else {{
+                            document.getElementById('notif-btn').style.display = 'inline-block';
+                        }}
+                    }} catch(e) {{
+                        document.getElementById('notif-btn').style.display = 'inline-block';
+                    }}
+                }}
+
+                async function handleNotifToggle() {{
+                    const perm = await Notification.requestPermission();
+                    if (perm !== 'granted') {{
+                        alert('Notifications blocked. Enable them in your browser/phone settings, then try again.');
+                        return;
+                    }}
+                    try {{
+                        const reg = await navigator.serviceWorker.ready;
+                        const sub = await reg.pushManager.subscribe({{
+                            userVisibleOnly: true,
+                            applicationServerKey: urlB64ToUint8(VAPID_PUB)
+                        }});
+                        await fetch(NOTIFY_SRV + '/subscribe', {{
+                            method: 'POST',
+                            headers: {{'Content-Type': 'application/json'}},
+                            body: JSON.stringify(sub.toJSON())
+                        }});
+                        document.getElementById('notif-btn').style.display = 'none';
+                        document.getElementById('notif-enabled').style.display = 'block';
+                    }} catch(e) {{
+                        alert('Could not enable: ' + e.message);
+                    }}
+                }}
+
+                async function disableNotif() {{
+                    try {{
+                        const reg = await navigator.serviceWorker.ready;
+                        const sub = await reg.pushManager.getSubscription();
+                        if (sub) await sub.unsubscribe();
+                        document.getElementById('notif-enabled').style.display = 'none';
+                        document.getElementById('notif-btn').style.display = 'inline-block';
+                    }} catch(e) {{ alert('Error: ' + e.message); }}
+                }}
+
+                checkStatus();
+                </script>
+                """, height=70, scrolling=False)
 
             st.markdown("<br>", unsafe_allow_html=True)
             st.button(
@@ -3677,62 +3779,6 @@ def _manage_announcements():
     if "ann_posted" not in st.session_state:
         st.session_state["ann_posted"] = ""
 
-    # ── Notification opt-in for coaches ──────────────────────────────────────
-    notify_server_c = st.secrets.get("notify_server_url", "")
-    if notify_server_c:
-        server_safe_c = notify_server_c.rstrip("/")
-        st.components.v1.html(f"""
-        <div id="notify-banner-coach" style="
-            background:#fff8e1;border:1px solid #ffe082;border-radius:8px;
-            padding:10px 14px;margin-bottom:12px;display:flex;
-            align-items:center;justify-content:space-between;gap:10px;
-            font-family:system-ui,sans-serif;font-size:13px;flex-wrap:wrap;
-        ">
-            <span style="color:#1e293b;">
-                🔔 <strong>Get notified</strong> on this device when you post announcements or results.
-            </span>
-            <button id="notify-btn-coach" onclick="requestNotifyCoach()" style="
-                background:#8B2331;color:#fff;border:none;border-radius:6px;
-                padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;
-            ">Enable</button>
-        </div>
-        <script>
-        const NOTIFY_SERVER_C = '{server_safe_c}';
-        const VAPID_PUBLIC_C  = '{st.secrets.get("vapid_public_key", "")}';
-        (async () => {{
-            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {{
-                document.getElementById('notify-banner-coach').style.display = 'none'; return;
-            }}
-            try {{
-                const reg = await navigator.serviceWorker.ready;
-                const sub = await reg.pushManager.getSubscription();
-                if (sub) document.getElementById('notify-banner-coach').style.display = 'none';
-            }} catch(e) {{}}
-        }})();
-        async function requestNotifyCoach() {{
-            const perm = await Notification.requestPermission();
-            if (perm !== 'granted') {{ alert('Notifications blocked — enable in browser settings.'); return; }}
-            try {{
-                const reg = await navigator.serviceWorker.ready;
-                const sub = await reg.pushManager.subscribe({{
-                    userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8ArrayC(VAPID_PUBLIC_C)
-                }});
-                await fetch(NOTIFY_SERVER_C + '/subscribe', {{
-                    method: 'POST', headers: {{'Content-Type': 'application/json'}},
-                    body: JSON.stringify(sub.toJSON())
-                }});
-                document.getElementById('notify-banner-coach').style.display = 'none';
-                alert('Notifications enabled!');
-            }} catch(e) {{ alert('Error: ' + e.message); }}
-        }}
-        function urlBase64ToUint8ArrayC(b) {{
-            const pad = '='.repeat((4 - b.length % 4) % 4);
-            const raw = window.atob((b + pad).replace(/-/g, '+').replace(/_/g, '/'));
-            return Uint8Array.from({{length: raw.length}}, (_, i) => raw.charCodeAt(i));
-        }}
-        </script>
-        """, height=70, scrolling=False)
 
     ann_action = st.radio(
         "Action:",
@@ -3825,80 +3871,6 @@ def _athlete_announcements_tab():
     Includes a notification opt-in prompt using the Web Push API.
     """
     st.subheader("Announcements")
-
-    # ── Push notification opt-in ──────────────────────────────────────────────
-    notify_server = st.secrets.get("notify_server_url", "")
-    if notify_server:
-        server_safe = notify_server.rstrip("/")
-        st.components.v1.html(f"""
-        <div id="notify-banner" style="
-            background:#f0f4ff;border:1px solid #c7d2fe;border-radius:8px;
-            padding:12px 16px;margin-bottom:16px;display:flex;
-            align-items:center;justify-content:space-between;gap:12px;
-            font-family:system-ui,sans-serif;font-size:14px;flex-wrap:wrap;
-        ">
-            <span style="color:#1e293b;">
-                🔔 <strong>Get notified</strong> when coaches post announcements or meet results.
-            </span>
-            <button id="notify-btn" onclick="requestNotify()" style="
-                background:#8B2331;color:#fff;border:none;border-radius:6px;
-                padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;
-                white-space:nowrap;
-            ">Enable Notifications</button>
-        </div>
-        <script>
-        const NOTIFY_SERVER = '{server_safe}';
-        const VAPID_PUBLIC  = '{st.secrets.get("vapid_public_key", "")}';
-
-        // Hide banner if already subscribed
-        (async () => {{
-            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {{
-                document.getElementById('notify-banner').style.display = 'none';
-                return;
-            }}
-            try {{
-                const reg  = await navigator.serviceWorker.ready;
-                const sub  = await reg.pushManager.getSubscription();
-                if (sub) document.getElementById('notify-banner').style.display = 'none';
-            }} catch(e) {{}}
-        }})();
-
-        async function requestNotify() {{
-            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {{
-                alert('Notifications are not supported in this browser. Try adding the app to your home screen first.');
-                return;
-            }}
-            const perm = await Notification.requestPermission();
-            if (perm !== 'granted') {{
-                alert('Notifications blocked. You can enable them in your browser settings.');
-                return;
-            }}
-            try {{
-                const reg = await navigator.serviceWorker.ready;
-                const sub = await reg.pushManager.subscribe({{
-                    userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC)
-                }});
-                await fetch(NOTIFY_SERVER + '/subscribe', {{
-                    method: 'POST',
-                    headers: {{'Content-Type': 'application/json'}},
-                    body: JSON.stringify(sub.toJSON())
-                }});
-                document.getElementById('notify-banner').style.display = 'none';
-                alert('Notifications enabled! You will be notified for new announcements and meet results.');
-            }} catch(e) {{
-                alert('Could not enable notifications: ' + e.message);
-            }}
-        }}
-
-        function urlBase64ToUint8Array(base64String) {{
-            const padding = '='.repeat((4 - base64String.length % 4) % 4);
-            const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-            const raw     = window.atob(base64);
-            return Uint8Array.from({{length: raw.length}}, (_, i) => raw.charCodeAt(i));
-        }}
-        </script>
-        """, height=80, scrolling=False)
 
     active = announcements_data[
         announcements_data["Active"].astype(str).str.upper().isin(ACTIVE_FLAGS)
