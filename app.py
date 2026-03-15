@@ -2000,93 +2000,69 @@ def _render_settings_overlay():
             if notify_server_s and vapid_pub_s:
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("**Push Notifications**")
-                st.components.v1.html(f"""
-                <div style="font-family:system-ui,sans-serif;font-size:13px;">
-                <div id="notif-status" style="color:#64748b;margin-bottom:8px;">Checking status...</div>
-                <button id="notif-btn" onclick="handleNotifToggle()" style="
-                    background:#8B2331;color:#fff;border:none;border-radius:6px;
-                    padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;
-                    display:none;
-                ">Enable Notifications</button>
-                <div id="notif-enabled" style="color:#22c55e;font-weight:600;display:none;">
-                    ✓ Notifications enabled
-                    <button onclick="disableNotif()" style="
-                        margin-left:10px;background:none;border:1px solid #94a3b8;
-                        color:#64748b;border-radius:4px;padding:3px 8px;
-                        font-size:11px;cursor:pointer;
-                    ">Disable</button>
-                </div>
-                <div id="notif-unsupported" style="color:#94a3b8;display:none;">
-                    Not supported in this browser. Add the app to your home screen and try again.
-                </div>
-                </div>
-                <script>
-                const NOTIFY_SRV  = '{notify_server_s.rstrip("/")}';
-                const VAPID_PUB   = '{vapid_pub_s}';
-
-                function urlB64ToUint8(b) {{
-                    const pad = '='.repeat((4-b.length%4)%4);
-                    const raw = atob((b+pad).replace(/-/g,'+').replace(/_/g,'/'));
-                    return Uint8Array.from({{length:raw.length}},(_,i)=>raw.charCodeAt(i));
-                }}
-
-                async function checkStatus() {{
-                    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {{
-                        document.getElementById('notif-status').style.display = 'none';
-                        document.getElementById('notif-unsupported').style.display = 'block';
-                        return;
-                    }}
-                    document.getElementById('notif-status').style.display = 'none';
-                    try {{
-                        const reg = await navigator.serviceWorker.ready;
-                        const sub = await reg.pushManager.getSubscription();
-                        if (sub) {{
-                            document.getElementById('notif-enabled').style.display = 'block';
-                        }} else {{
-                            document.getElementById('notif-btn').style.display = 'inline-block';
-                        }}
-                    }} catch(e) {{
-                        document.getElementById('notif-btn').style.display = 'inline-block';
-                    }}
-                }}
-
-                async function handleNotifToggle() {{
-                    const perm = await Notification.requestPermission();
-                    if (perm !== 'granted') {{
-                        alert('Notifications blocked. Enable them in your browser/phone settings, then try again.');
-                        return;
-                    }}
-                    try {{
-                        const reg = await navigator.serviceWorker.ready;
-                        const sub = await reg.pushManager.subscribe({{
-                            userVisibleOnly: true,
-                            applicationServerKey: urlB64ToUint8(VAPID_PUB)
-                        }});
-                        await fetch(NOTIFY_SRV + '/subscribe', {{
-                            method: 'POST',
-                            headers: {{'Content-Type': 'application/json'}},
-                            body: JSON.stringify(sub.toJSON())
-                        }});
-                        document.getElementById('notif-btn').style.display = 'none';
-                        document.getElementById('notif-enabled').style.display = 'block';
-                    }} catch(e) {{
-                        alert('Could not enable: ' + e.message);
-                    }}
-                }}
-
-                async function disableNotif() {{
-                    try {{
-                        const reg = await navigator.serviceWorker.ready;
-                        const sub = await reg.pushManager.getSubscription();
-                        if (sub) await sub.unsubscribe();
-                        document.getElementById('notif-enabled').style.display = 'none';
-                        document.getElementById('notif-btn').style.display = 'inline-block';
-                    }} catch(e) {{ alert('Error: ' + e.message); }}
-                }}
-
-                checkStatus();
-                </script>
-                """, height=70, scrolling=False)
+                # Use a full-width iframe outside the narrow column so it
+                # doesn't get clipped on mobile
+                st.components.v1.html(f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{{margin:0;padding:0;font-family:system-ui,sans-serif;font-size:14px;background:transparent;}}
+.row{{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:4px 0;}}
+.btn{{background:#8B2331;color:#fff;border:none;border-radius:6px;padding:9px 18px;
+      font-size:14px;font-weight:600;cursor:pointer;}}
+.ok{{color:#22c55e;font-weight:600;}}
+.dis{{background:none;border:1px solid #94a3b8;color:#64748b;border-radius:4px;
+      padding:4px 10px;font-size:12px;cursor:pointer;margin-left:8px;}}
+.muted{{color:#94a3b8;font-size:13px;}}
+</style></head><body>
+<div class="row">
+  <span id="status" class="muted">Checking...</span>
+  <button id="enable-btn" class="btn" onclick="enableNotif()" style="display:none">Enable Notifications</button>
+  <span id="enabled-msg" class="ok" style="display:none">✓ Notifications on
+    <button class="dis" onclick="disableNotif()">Disable</button>
+  </span>
+  <span id="unsupported" class="muted" style="display:none">Not supported — add app to home screen first</span>
+</div>
+<script>
+const SRV = '{notify_server_s.rstrip("/")}';
+const PUB = '{vapid_pub_s}';
+function b64(s){{const p='='.repeat((4-s.length%4)%4);const r=atob((s+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from({{length:r.length}},(_,i)=>r.charCodeAt(i));}}
+async function init(){{
+  const st=document.getElementById('status');
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)){{
+    st.style.display='none'; document.getElementById('unsupported').style.display='inline'; return;
+  }}
+  st.style.display='none';
+  try{{
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.getSubscription();
+    if(sub){{document.getElementById('enabled-msg').style.display='inline';}}
+    else{{document.getElementById('enable-btn').style.display='inline-block';}}
+  }}catch(e){{document.getElementById('enable-btn').style.display='inline-block';}}
+}}
+async function enableNotif(){{
+  const p=await Notification.requestPermission();
+  if(p!=='granted'){{alert('Blocked — enable notifications in your phone settings then try again.');return;}}
+  try{{
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.subscribe({{userVisibleOnly:true,applicationServerKey:b64(PUB)}});
+    await fetch(SRV+'/subscribe',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(sub.toJSON())}});
+    document.getElementById('enable-btn').style.display='none';
+    document.getElementById('enabled-msg').style.display='inline';
+  }}catch(e){{alert('Error: '+e.message);}}
+}}
+async function disableNotif(){{
+  try{{
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.getSubscription();
+    if(sub)await sub.unsubscribe();
+    document.getElementById('enabled-msg').style.display='none';
+    document.getElementById('enable-btn').style.display='inline-block';
+  }}catch(e){{alert('Error: '+e.message);}}
+}}
+init();
+</script>
+</body></html>""", height=55, scrolling=False)
 
             st.markdown("<br>", unsafe_allow_html=True)
             st.button(
