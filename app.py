@@ -198,6 +198,13 @@ st.markdown("""
     .viewerBadge_container__1QSob {display: none !important;}
     [class^="viewerBadge_"] {display: none !important;}
     .block-container {padding-top: 1rem !important;}
+    /* Prevent device dark mode from overriding app themes */
+    :root { color-scheme: light only !important; }
+    *, *::before, *::after { color-scheme: light only; }
+    input, select, textarea, button {
+        color-scheme: light only !important;
+        -webkit-appearance: none;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -1564,6 +1571,7 @@ def password_reset_page():
                     roster_data.at[idx, "Password"] = new_password
                     roster_data.at[idx, "First_Login"] = "FALSE"
                     with st.spinner("Updating account..."): save_to_sheet("Roster", roster_data)
+                    invalidate_roster()  # Critical: clears cache so new password is valid immediately
                     st.session_state["first_login"] = False
                     st.rerun()
 
