@@ -2282,14 +2282,24 @@ def _tab_roster_management():
                         if edit_role != "Coach" and (not edit_grad_year.strip().isdigit() or len(edit_grad_year.strip()) != 4):
                             st.error("Graduation Year must be a 4-digit number.")
                             st.stop()
+                
                         idx = roster_data.index[roster_data["Username"] == user_to_edit].tolist()[0]
                         roster_data.at[idx, "First_Name"] = edit_first
-                        roster_data.at[idx, "Last_Name"]  = edit_last
-                        roster_data.at[idx, "Role"]       = edit_role
-                        roster_data.at[idx, "Grad_Year"]  = "Coach" if edit_role == "Coach" else edit_grad_year.strip()
-                        roster_data.at[idx, "Gender"]     = "N/A"   if edit_role == "Coach" else edit_gender
-                        with st.spinner("Saving changes..."): save_to_sheet("Roster", roster_data)
-                        st.success("Member updated successfully."); st.rerun()
+                        roster_data.at[idx, "Last_Name"] = edit_last
+                        roster_data.at[idx, "Role"] = edit_role
+                        roster_data.at[idx, "Grad_Year"] = "Coach" if edit_role == "Coach" else edit_grad_year.strip()
+                        roster_data.at[idx, "Gender"] = "N/A" if edit_role == "Coach" else edit_gender
+            
+                        with st.spinner("Saving changes..."):
+                            # CHANGE THIS: Drop the helper column before saving so the sheet headers match
+                            save_data = roster_data.drop(columns=["Active_Clean"]) if "Active_Clean" in roster_data.columns else roster_data
+                            save_to_sheet("Roster", save_data) # YOUR VALUE HERE (use save_data)
+                            
+                            # ADD THIS: Invalidate the cache so the app sees the changes immediately
+                            invalidate_roster() 
+                            
+                        st.success("Member updated successfully.")
+                        st.rerun()
 
     elif roster_action == "Archive / Restore":
         arc_tab1, arc_tab2, arc_tab3 = st.tabs(["Archive Individual", "Restore Member", "Graduate Seniors"])
