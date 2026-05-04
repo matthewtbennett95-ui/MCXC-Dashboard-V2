@@ -1935,7 +1935,7 @@ def password_reset_page():
                 else:
                     idx = roster_data.index[roster_data["Username"] == st.session_state["username"]].tolist()[0]
                     roster_data.at[idx, "Password"] = new_password
-                    roster_data.at[idx, "First_Login"] = "FALSE"
+                    roster_data.at[idx, "First_Login"] = False
                     with st.spinner("Updating account..."): save_to_sheet("Roster", roster_data)
                     invalidate_roster()  # Critical: clears cache so new password is valid immediately
                     st.session_state["first_login"] = False
