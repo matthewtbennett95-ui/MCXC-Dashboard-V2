@@ -2321,6 +2321,10 @@ def _tab_roster_management():
                                                     format_func=lambda x: arc_dict[x])
                 if st.button("Archive Member"):
                     idx = roster_data.index[roster_data["Username"] == user_to_archive].tolist()[0]
+                    
+                    # HERE ARE THINGS JUST GUESSING IT MIGHT WORK
+                    roster_data["Active"] = roster_data["Active"].astype(str)
+                    
                     roster_data.at[idx, "Active"] = "FALSE"
                     save_to_sheet("Roster", roster_data); st.rerun()
 
