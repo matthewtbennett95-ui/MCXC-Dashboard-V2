@@ -1934,7 +1934,13 @@ def password_reset_page():
                 elif new_password != confirm_password: st.error("Passwords do not match.")
                 else:
                     idx = roster_data.index[roster_data["Username"] == st.session_state["username"]].tolist()[0]
-                    roster_data.at[idx, "Password"] = new_password
+                    # Cast both columns to string dtype before assigning.
+                    # Newer pandas enforces column dtypes strictly — if the column came in as
+                    # bool or another type, .at[] will reject a string value outright.
+                    # Converting the whole column to object (string) dtype first prevents this.
+                    roster_data["Password"]    = roster_data["Password"].astype(str)
+                    roster_data["First_Login"] = roster_data["First_Login"].astype(str)
+                    roster_data.at[idx, "Password"]    = new_password
                     roster_data.at[idx, "First_Login"] = "FALSE"
                     with st.spinner("Updating account..."): save_to_sheet("Roster", roster_data)
                     invalidate_roster()  # Critical: clears cache so new password is valid immediately
